@@ -1,7 +1,9 @@
-import React, { useState, useRef } from 'react';
-import { View, TouchableOpacity, Animated, StyleSheet, Dimensions, Text } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, TouchableOpacity, Animated, StyleSheet, Dimensions, Text, TouchableWithoutFeedback, Platform } from 'react-native';
 import { Plus, Package, Users, Tag, Truck, UserPlus, LucideIcon } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 interface MenuAction {
   id: string;
@@ -36,13 +38,13 @@ export default function FloatingActionMenu({ onMenuItemPress }: FloatingActionMe
     activeButton: null,
   });
 
-  // Menu actions configuration
+  // Enhanced menu actions configuration with better colors
   const menuActions: MenuAction[] = [
-    { id: 'products', label: 'Add Products', icon: Package, color: '#3b82f6' },
-    { id: 'customer', label: 'Customer', icon: Users, color: '#10b981' },
-    { id: 'category', label: 'Category', icon: Tag, color: '#f59e0b' },
-    { id: 'suppliers', label: 'Suppliers', icon: Truck, color: '#ef4444' },
-    { id: 'role', label: 'New Role', icon: UserPlus, color: '#8b5cf6' }
+    { id: 'products', label: 'Add Products', icon: Package, color: '#2563eb' },
+    { id: 'customer', label: 'Customer', icon: Users, color: '#16a34a' },
+    { id: 'category', label: 'Category', icon: Tag, color: '#ea580c' },
+    { id: 'suppliers', label: 'Suppliers', icon: Truck, color: '#dc2626' },
+    { id: 'role', label: 'New Role', icon: UserPlus, color: '#7c3aed' }
   ];
 
   // Animation values
@@ -66,29 +68,21 @@ export default function FloatingActionMenu({ onMenuItemPress }: FloatingActionMe
     }
   };
 
-  // Cleanup function to reset animation values
-  const resetAnimationValues = () => {
-    animationValues.overlayOpacity.setValue(0);
-    animationValues.menuScale.setValue(0);
-    animationValues.centerButtonRotation.setValue(0);
-    animationValues.buttonOpacities.forEach(opacity => opacity.setValue(0));
-    animationValues.buttonScales.forEach(scale => scale.setValue(0));
-  };
-
   const openMenu = () => {
     setMenuState(prev => ({ ...prev, isOpen: true }));
 
     // Animate overlay fade in
     Animated.timing(animationValues.overlayOpacity, {
       toValue: 1,
-      duration: 200,
+      duration: 250,
       useNativeDriver: true,
     }).start();
 
     // Animate center button rotation
-    Animated.timing(animationValues.centerButtonRotation, {
+    Animated.spring(animationValues.centerButtonRotation, {
       toValue: 1,
-      duration: 200,
+      tension: 120,
+      friction: 8,
       useNativeDriver: true,
     }).start();
 
@@ -100,20 +94,20 @@ export default function FloatingActionMenu({ onMenuItemPress }: FloatingActionMe
       useNativeDriver: true,
     }).start();
 
-    // Animate menu buttons with stagger
+    // Animate menu buttons with stagger effect
     const buttonAnimations = animationValues.buttonOpacities.map((opacity, index) => {
       return Animated.parallel([
         Animated.timing(opacity, {
           toValue: 1,
           duration: 300,
-          delay: index * 50,
+          delay: index * 60,
           useNativeDriver: true,
         }),
         Animated.spring(animationValues.buttonScales[index], {
           toValue: 1,
-          tension: 100,
-          friction: 8,
-          delay: index * 50,
+          tension: 120,
+          friction: 7,
+          delay: index * 60,
           useNativeDriver: true,
         }),
       ]);
@@ -128,35 +122,38 @@ export default function FloatingActionMenu({ onMenuItemPress }: FloatingActionMe
     // Animate overlay fade out
     Animated.timing(animationValues.overlayOpacity, {
       toValue: 0,
-      duration: 150,
+      duration: 200,
       useNativeDriver: true,
     }).start();
 
     // Animate center button rotation back
-    Animated.timing(animationValues.centerButtonRotation, {
+    Animated.spring(animationValues.centerButtonRotation, {
       toValue: 0,
-      duration: 150,
+      tension: 120,
+      friction: 8,
       useNativeDriver: true,
     }).start();
 
     // Animate menu scale down
     Animated.timing(animationValues.menuScale, {
       toValue: 0,
-      duration: 150,
+      duration: 200,
       useNativeDriver: true,
     }).start();
 
-    // Animate menu buttons out
+    // Animate menu buttons out with reverse stagger
     const buttonAnimations = animationValues.buttonOpacities.map((opacity, index) => {
       return Animated.parallel([
         Animated.timing(opacity, {
           toValue: 0,
-          duration: 150,
+          duration: 200,
+          delay: (menuActions.length - 1 - index) * 40,
           useNativeDriver: true,
         }),
         Animated.timing(animationValues.buttonScales[index], {
           toValue: 0,
-          duration: 150,
+          duration: 200,
+          delay: (menuActions.length - 1 - index) * 40,
           useNativeDriver: true,
         }),
       ]);
@@ -167,34 +164,40 @@ export default function FloatingActionMenu({ onMenuItemPress }: FloatingActionMe
     });
   };
 
+  // Log when menu state changes
+  useEffect(() => {
+    console.log('Menu state changed:', menuState.isOpen);
+  }, [menuState.isOpen]);
+
   const handleOverlayPress = () => {
-    if (menuState.isOpen) {
+    console.log('Overlay pressed');
+    if (menuState.isOpen && !menuState.isAnimating) {
       closeMenu();
     }
   };
 
   const handleMenuItemPress = (action: MenuAction) => {
+    setMenuState(prev => ({ ...prev, activeButton: action.id }));
     onMenuItemPress(action);
     closeMenu();
   };
 
-  // Calculate half-donut position for menu buttons (perfect semicircle above plus button)
-  const getHalfDonutPosition = (index: number, totalButtons: number, radius: number = 100) => {
-    // Create a beautiful half-donut arc above the plus button
-    // Start from left side and curve to right side in a perfect semicircle
-    const startAngle = Math.PI; // Start from left (180°)
-    const endAngle = 0; // End at right (0°)
-    const angleStep = Math.PI / (totalButtons - 1); // Divide semicircle evenly
-    const angle = startAngle - (index * angleStep);
-
+  // Perfect semicircle calculation - Fixed positioning
+  const getPerfectSemicirclePosition = (index: number, totalButtons: number) => {
+    // Create perfect semicircle with equal spacing
+    const radius = 110; // Optimal radius for visual appeal
+    const totalAngle = Math.PI; // 180 degrees for semicircle
+    const angleStep = totalAngle / (totalButtons - 1);
+    const angle = Math.PI - (index * angleStep); // Start from left (π) to right (0)
+    
     const x = Math.cos(angle) * radius;
-    const y = Math.sin(angle) * radius - 40; // Position nicely above plus button
-
+    const y = -Math.sin(angle) * radius - 15; // Negative for upward positioning
+    
     return { x, y };
   };
 
   const renderMenuButton = (action: MenuAction, index: number) => {
-    const position = getHalfDonutPosition(index, menuActions.length);
+    const position = getPerfectSemicirclePosition(index, menuActions.length);
     const IconComponent = action.icon;
 
     return (
@@ -220,139 +223,179 @@ export default function FloatingActionMenu({ onMenuItemPress }: FloatingActionMe
             activeOpacity={0.8}
             testID={`floating-menu-button-touchable-${action.id}`}
           >
-            <IconComponent size={24} color="#FFFFFF" />
+            <IconComponent size={22} color="#FFFFFF" strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
-        <Text style={[styles.menuButtonLabel, { color: '#FFFFFF' }]}>{action.label}</Text>
+        <Text style={styles.menuButtonLabel}>{action.label}</Text>
       </Animated.View>
     );
   };
 
   const styles = StyleSheet.create({
-    container: {
+    backdrop: {
       position: 'absolute',
-      bottom: 80, // Position perfectly above the navigation bar
+      top: 0,
       left: 0,
       right: 0,
-      height: 160, // Optimized height for half-donut
+      bottom: 0,
+      width: '100%',
+      height: '100%',
+      zIndex: 990,
+      backgroundColor: 'transparent',
+    },
+    container: {
+      position: 'absolute',
+      bottom: 85,
+      left: 0,
+      right: 0,
+      height: 180,
       alignItems: 'center',
       justifyContent: 'flex-end',
       zIndex: 1000,
-      pointerEvents: 'box-none', // Allow touches to pass through empty areas
+      pointerEvents: 'box-none',
     },
     overlay: {
       position: 'absolute',
       bottom: 0,
       left: '50%',
-      width: 280, // Wider for better visual impact
-      height: 150, // Taller for better semicircle
-      marginLeft: -140, // Center the half-donut perfectly
-      backgroundColor: 'rgba(0, 0, 0, 0.15)', // Subtle dark overlay
-      borderTopLeftRadius: 140,
-      borderTopRightRadius: 140,
+      width: 320,
+      height: 160,
+      marginLeft: -160,
+      backgroundColor: 'transparent', // Removed dark background
+      borderTopLeftRadius: 160,
+      borderTopRightRadius: 160,
       zIndex: 999,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 5,
     },
     menuContainer: {
       position: 'absolute',
-      bottom: 20, // Perfect positioning relative to container
+      bottom: 20,
       left: 0,
       right: 0,
       alignItems: 'center',
       zIndex: 1001,
     },
     centerButton: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
+      width: 60,
+      height: 60,
+      borderRadius: 30,
       backgroundColor: theme.colors.navigation.active,
       alignItems: 'center',
       justifyContent: 'center',
-      marginTop: -20,
+      marginTop: -25,
+      // Enhanced shadow and glow effect
       shadowColor: theme.colors.navigation.active,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.4,
-      shadowRadius: 12,
-      elevation: 10,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.5,
+      shadowRadius: 16,
+      elevation: 12,
       zIndex: 1002,
-      borderWidth: 2,
-      borderColor: 'rgba(255, 255, 255, 0.2)',
+      // Gradient-like border effect
+      borderWidth: 3,
+      borderColor: 'rgba(255, 255, 255, 0.25)',
     },
     menuButton: {
       position: 'absolute',
       alignItems: 'center',
       justifyContent: 'center',
+      zIndex: 1003,
     },
     menuButtonContainer: {
-      width: 56, // Slightly smaller for better proportion
-      height: 56,
-      borderRadius: 28,
+      width: 52,
+      height: 52,
+      borderRadius: 26,
       alignItems: 'center',
       justifyContent: 'center',
+      // Enhanced shadow for floating effect
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.4,
-      shadowRadius: 12,
-      elevation: 10,
-      borderWidth: 2,
-      borderColor: 'rgba(255, 255, 255, 0.3)',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.35,
+      shadowRadius: 14,
+      elevation: 12,
+      // Refined border
+      borderWidth: 2.5,
+      borderColor: 'rgba(255, 255, 255, 0.2)',
     },
     menuButtonTouchable: {
       width: '100%',
       height: '100%',
-      borderRadius: 28,
+      borderRadius: 26,
       alignItems: 'center',
       justifyContent: 'center',
     },
     menuButtonLabel: {
-      marginTop: 6,
-      fontSize: 10,
+      marginTop: 8,
+      fontSize: 11,
       fontWeight: '700',
       textAlign: 'center',
       color: '#FFFFFF',
-      textShadowColor: 'rgba(0, 0, 0, 0.9)',
+      // Enhanced text shadow for better readability
+      textShadowColor: 'rgba(0, 0, 0, 0.8)',
       textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 4,
-      maxWidth: 65,
-      letterSpacing: 0.3,
+      textShadowRadius: 6,
+      maxWidth: 70,
+      letterSpacing: 0.2,
+      lineHeight: 13,
+    },
+    fullScreenOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.01)',
+      zIndex: 900,
     },
   });
 
   return (
     <>
       {menuState.isOpen && (
-        <View style={styles.container}>
-          <Animated.View
-            style={[
-              styles.overlay,
-              {
-                opacity: animationValues.overlayOpacity,
-              },
-            ]}
-            testID="floating-menu-overlay"
+        <>
+          <TouchableWithoutFeedback 
+            onPress={handleOverlayPress} 
+            testID="floating-menu-backdrop"
           >
-            <TouchableOpacity
-              style={{ flex: 1 }}
-              onPress={handleOverlayPress}
-              activeOpacity={1}
-              testID="floating-menu-overlay-touchable"
-            />
-          </Animated.View>
+            <View style={styles.fullScreenOverlay} />
+          </TouchableWithoutFeedback>
+          
+          <View style={styles.container} pointerEvents="box-none">
+            <Animated.View
+              style={[
+                styles.overlay,
+                {
+                  opacity: animationValues.overlayOpacity,
+                  transform: [{
+                    scale: animationValues.menuScale,
+                  }],
+                },
+              ]}
+              testID="floating-menu-overlay"
+            >
+              <TouchableOpacity
+                style={{ flex: 1 }}
+                onPress={handleOverlayPress}
+                activeOpacity={1}
+                testID="floating-menu-overlay-touchable"
+              />
+            </Animated.View>
 
-          <View style={styles.menuContainer} testID="floating-menu-items-container">
-            {menuActions.map((action, index) => renderMenuButton(action, index))}
+            <Animated.View 
+              style={[
+                styles.menuContainer,
+                {
+                  transform: [{
+                    scale: animationValues.menuScale,
+                  }],
+                },
+              ]}
+              testID="floating-menu-items-container"
+            >
+              {menuActions.map((action, index) => renderMenuButton(action, index))}
+            </Animated.View>
           </View>
-        </View>
+        </>
       )}
 
       <TouchableOpacity
         style={styles.centerButton}
         onPress={toggleMenu}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
         testID="floating-menu-center-button"
       >
         <Animated.View
@@ -360,15 +403,15 @@ export default function FloatingActionMenu({ onMenuItemPress }: FloatingActionMe
             transform: [{
               rotate: animationValues.centerButtonRotation.interpolate({
                 inputRange: [0, 1],
-                outputRange: ['0deg', '45deg'],
+                outputRange: ['0deg', '135deg'], // More dramatic rotation
               }),
             }],
           }}
         >
           <Plus
-            size={24}
+            size={26}
             color="#FFFFFF"
-            strokeWidth={2.5}
+            strokeWidth={2.8}
           />
         </Animated.View>
       </TouchableOpacity>
