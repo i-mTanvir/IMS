@@ -71,7 +71,7 @@ export default function AnimatedSidebar({ isOpen, onClose, onLogout }: AnimatedS
     { icon: Bell, label: 'Notifications', route: '/notification' },
     { icon: Activity, label: 'Activity Logs', route: '/logs' },
     { icon: Settings, label: 'Settings', route: '/settings' },
-    { icon: HelpCircle, label: 'Help & Support', route: '/help' },
+    { icon: HelpCircle, label: 'Help & Support', route: '/support' },
   ];
 
   useEffect(() => {

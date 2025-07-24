@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,9 @@ import {
   X,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
+import ProfilePopup from './ProfilePopup';
 
 const { width } = Dimensions.get('window');
 const isMobile = width < 768;
@@ -64,7 +66,9 @@ export default function TopNavBar({
   originalTitle,
 }: TopNavBarProps) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const router = useRouter();
+  const [showProfilePopup, setShowProfilePopup] = useState(false);
 
   const handleBackPress = () => {
     if (router.canGoBack()) {
@@ -87,8 +91,17 @@ export default function TopNavBar({
     if (onProfilePress) {
       onProfilePress();
     } else {
-      router.push('/profile');
+      setShowProfilePopup(true);
     }
+  };
+
+  const getUserInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(word => word.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   // Determine what title to show based on sidebar state
@@ -185,7 +198,7 @@ export default function TopNavBar({
       overflow: 'hidden',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme.colors.backgroundSecondary,
+      backgroundColor: theme.colors.primary,
     },
     profileImage: {
       width: 36,
@@ -205,93 +218,114 @@ export default function TopNavBar({
       fontWeight: 'bold',
       color: theme.colors.text.inverse,
     },
+    profileAvatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: theme.colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    profileAvatarText: {
+      color: theme.colors.text.inverse,
+      fontSize: 12,
+      fontWeight: '600',
+    },
   });
 
   return (
-    <View style={styles.container}>
-      <View style={styles.topNav}>
-        <View style={styles.topNavLeft}>
-          {showBackButton ? (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={handleBackPress}
-              activeOpacity={0.7}
-            >
-              <ArrowLeft size={24} color={theme.colors.text.primary} />
-            </TouchableOpacity>
-          ) : showMenuButton ? (
-            <TouchableOpacity
-              style={styles.menuButton}
-              onPress={onMenuPress}
-              activeOpacity={0.7}
-            >
-              {sidebarOpen ? (
-                <X size={24} color={theme.colors.text.primary} />
-              ) : (
-                <Menu size={24} color={theme.colors.text.primary} />
-              )}
-            </TouchableOpacity>
-          ) : null}
+    <>
+      <View style={styles.container}>
+        <View style={styles.topNav}>
+          <View style={styles.topNavLeft}>
+            {showBackButton ? (
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={handleBackPress}
+                activeOpacity={0.7}
+              >
+                <ArrowLeft size={24} color={theme.colors.text.primary} />
+              </TouchableOpacity>
+            ) : showMenuButton ? (
+              <TouchableOpacity
+                style={styles.menuButton}
+                onPress={onMenuPress}
+                activeOpacity={0.7}
+              >
+                {sidebarOpen ? (
+                  <X size={24} color={theme.colors.text.primary} />
+                ) : (
+                  <Menu size={24} color={theme.colors.text.primary} />
+                )}
+              </TouchableOpacity>
+            ) : null}
 
-          <View style={styles.titleContainer}>
-            {(title || originalTitle) && <Text style={styles.title}>{getDisplayTitle()}</Text>}
-            {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+            <View style={styles.titleContainer}>
+              {(title || originalTitle) && <Text style={styles.title}>{getDisplayTitle()}</Text>}
+              {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+            </View>
+          </View>
+
+          <View style={styles.topNavActions}>
+            {rightContent || (
+              <>
+                {/* Hide date on mobile, show on tablet and desktop */}
+                {!isMobile && <Text style={styles.dateText}>{getCurrentDate()}</Text>}
+
+                {showSearch && (
+                  <TouchableOpacity
+                    style={[styles.iconButton, styles.searchButton]}
+                    onPress={onSearchPress}
+                    activeOpacity={0.7}
+                  >
+                    <Search size={20} color={theme.colors.text.secondary} />
+                  </TouchableOpacity>
+                )}
+
+                {/* Hide calendar on mobile, show on tablet and desktop */}
+                {showCalendar && !isMobile && (
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={onCalendarPress}
+                    activeOpacity={0.7}
+                  >
+                    <Calendar size={20} color={theme.colors.text.secondary} />
+                  </TouchableOpacity>
+                )}
+
+                {showNotifications && (
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={onNotificationPress || (() => router.push('/notification'))}
+                    activeOpacity={0.7}
+                  >
+                    <Bell size={20} color={theme.colors.text.secondary} />
+                    <View style={styles.notificationBadge} />
+                  </TouchableOpacity>
+                )}
+
+                {showProfile && user && (
+                  <TouchableOpacity
+                    style={styles.profileButton}
+                    onPress={handleProfilePress}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.profileText}>
+                      {getUserInitials(user.name)}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
           </View>
         </View>
-
-        <View style={styles.topNavActions}>
-          {rightContent || (
-            <>
-              {/* Hide date on mobile, show on tablet and desktop */}
-              {!isMobile && <Text style={styles.dateText}>{getCurrentDate()}</Text>}
-
-              {showSearch && (
-                <TouchableOpacity
-                  style={[styles.iconButton, styles.searchButton]}
-                  onPress={onSearchPress}
-                  activeOpacity={0.7}
-                >
-                  <Search size={20} color={theme.colors.text.secondary} />
-                </TouchableOpacity>
-              )}
-
-              {/* Hide calendar on mobile, show on tablet and desktop */}
-              {showCalendar && !isMobile && (
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={onCalendarPress}
-                  activeOpacity={0.7}
-                >
-                  <Calendar size={20} color={theme.colors.text.secondary} />
-                </TouchableOpacity>
-              )}
-
-              {showNotifications && (
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={onNotificationPress || (() => router.push('/notification'))}
-                  activeOpacity={0.7}
-                >
-                  <Bell size={20} color={theme.colors.text.secondary} />
-                  <View style={styles.notificationBadge} />
-                </TouchableOpacity>
-              )}
-
-              {showProfile && (
-                <TouchableOpacity
-                  style={styles.profileButton}
-                  onPress={handleProfilePress}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.profileFallback}>
-                    <Text style={styles.profileText}>U</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-            </>
-          )}
-        </View>
       </View>
-    </View>
+
+      {/* Profile Popup */}
+      <ProfilePopup
+        visible={showProfilePopup}
+        onClose={() => setShowProfilePopup(false)}
+      />
+    </>
   );
-} 
+}

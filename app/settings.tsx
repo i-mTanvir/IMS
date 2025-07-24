@@ -50,8 +50,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import BottomNavBar from '@/components/BottomNavBar';
-import TopNavBar from '@/components/TopNavBar';
+import SharedLayout from '@/components/SharedLayout';
 
 // Types
 interface RoleManagement {
@@ -819,20 +818,7 @@ export default function SettingsPage() {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-            <TopNavBar
-                title="Settings"
-                subtitle="Manage your account and preferences"
-                showBackButton={true}
-                rightContent={
-                    <TouchableOpacity
-                        style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-                    >
-                        <Settings size={20} color={theme.colors.primary} />
-                    </TouchableOpacity>
-                }
-            />
-
+        <SharedLayout title="Settings">
             <ScrollView
                 style={styles.content}
                 showsVerticalScrollIndicator={false}
@@ -933,25 +919,13 @@ export default function SettingsPage() {
                     </View>
                 </View>
             </Modal>
-
-            <BottomNavBar activeTab="settings" />
-        </SafeAreaView>
+        </SharedLayout>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
     content: {
         flex: 1,
-    },
-    headerButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
     tabContainer: {
         flexDirection: 'row',

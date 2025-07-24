@@ -6,7 +6,6 @@ import {
     ScrollView,
     TouchableOpacity,
     TextInput,
-    SafeAreaView,
     FlatList,
     RefreshControl,
     Alert,
@@ -38,8 +37,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import BottomNavBar from '@/components/BottomNavBar';
-import TopNavBar from '@/components/TopNavBar';
+import SharedLayout from '@/components/SharedLayout';
 
 // Types
 interface HelpArticle {
@@ -239,11 +237,13 @@ export default function SupportPage() {
     const [articles] = useState<HelpArticle[]>(mockHelpArticles);
     const [videos] = useState<VideoTutorial[]>(mockVideoTutorials);
     const [faqs] = useState<FAQ[]>(mockFAQs);
-    const [filters, setFilters] = useState<HelpFilters>({});
-    const [selectedArticle, setSelectedArticle] = useState<HelpArticle | null>(null);
-    const [showArticleModal, setShowArticleModal] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState<string>('');
+    const [selectedDifficulty, setSelectedDifficulty] = useState<string>('');
     const [showFilters, setShowFilters] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+    const [showArticleModal, setShowArticleModal] = useState(false);
+    const [selectedArticle, setSelectedArticle] = useState<HelpArticle | null>(null);
     const [contactForm, setContactForm] = useState<ContactForm>({
         subject: '',
         category: '',
@@ -252,48 +252,48 @@ export default function SupportPage() {
 
     const filteredArticles = useMemo(() => {
         return articles.filter(article => {
-            if (filters.search &&
-                !article.title.toLowerCase().includes(filters.search.toLowerCase()) &&
-                !article.content.toLowerCase().includes(filters.search.toLowerCase())) {
+            if (searchQuery &&
+                !article.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+                !article.content.toLowerCase().includes(searchQuery.toLowerCase())) {
                 return false;
             }
-            if (filters.category && article.category !== filters.category) {
+            if (selectedCategory && article.category !== selectedCategory) {
                 return false;
             }
             return true;
         });
-    }, [articles, filters]);
+    }, [articles, searchQuery, selectedCategory]);
 
     const filteredVideos = useMemo(() => {
         return videos.filter(video => {
-            if (filters.search &&
-                !video.title.toLowerCase().includes(filters.search.toLowerCase()) &&
-                !video.description.toLowerCase().includes(filters.search.toLowerCase())) {
+            if (searchQuery &&
+                !video.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+                !video.description.toLowerCase().includes(searchQuery.toLowerCase())) {
                 return false;
             }
-            if (filters.category && video.category !== filters.category) {
+            if (selectedCategory && video.category !== selectedCategory) {
                 return false;
             }
-            if (filters.difficulty && video.difficulty !== filters.difficulty) {
+            if (selectedDifficulty && video.difficulty !== selectedDifficulty) {
                 return false;
             }
             return true;
         });
-    }, [videos, filters]);
+    }, [videos, searchQuery, selectedCategory, selectedDifficulty]);
 
     const filteredFAQs = useMemo(() => {
         return faqs.filter(faq => {
-            if (filters.search &&
-                !faq.question.toLowerCase().includes(filters.search.toLowerCase()) &&
-                !faq.answer.toLowerCase().includes(filters.search.toLowerCase())) {
+            if (searchQuery &&
+                !faq.question.toLowerCase().includes(searchQuery.toLowerCase()) &&
+                !faq.answer.toLowerCase().includes(searchQuery.toLowerCase())) {
                 return false;
             }
-            if (filters.category && faq.category !== filters.category) {
+            if (selectedCategory && faq.category !== selectedCategory) {
                 return false;
             }
             return true;
         });
-    }, [faqs, filters]);
+    }, [faqs, searchQuery, selectedCategory]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -321,7 +321,9 @@ export default function SupportPage() {
     };
 
     const clearFilters = () => {
-        setFilters({});
+        setSearchQuery('');
+        setSelectedCategory('');
+        setSelectedDifficulty('');
     };
 
     // Render functions
@@ -391,12 +393,12 @@ export default function SupportPage() {
                     style={[styles.searchInput, { color: theme.colors.text.primary }]}
                     placeholder="Search documentation, videos, or FAQs..."
                     placeholderTextColor={theme.colors.text.muted}
-                    value={filters.search || ''}
-                    onChangeText={(text) => setFilters(prev => ({ ...prev, search: text }))}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
                 />
-                {filters.search && (
+                {searchQuery && (
                     <TouchableOpacity
-                        onPress={() => setFilters(prev => ({ ...prev, search: '' }))}
+                        onPress={() => setSearchQuery('')}
                         style={styles.clearSearchButton}
                     >
                         <X size={16} color={theme.colors.text.muted} />
@@ -429,20 +431,17 @@ export default function SupportPage() {
                                 style={[
                                     styles.filterChip,
                                     {
-                                        backgroundColor: filters.category === category ? theme.colors.primary : theme.colors.backgroundSecondary,
-                                        borderColor: filters.category === category ? theme.colors.primary : theme.colors.border,
+                                        backgroundColor: selectedCategory === category ? theme.colors.primary : theme.colors.backgroundSecondary,
+                                        borderColor: selectedCategory === category ? theme.colors.primary : theme.colors.border,
                                     }
                                 ]}
                                 onPress={() => {
-                                    setFilters(prev => ({
-                                        ...prev,
-                                        category: prev.category === category ? undefined : category
-                                    }));
+                                    setSelectedCategory(selectedCategory === category ? '' : category);
                                 }}
                             >
                                 <Text style={[
                                     styles.filterChipText,
-                                    { color: filters.category === category ? theme.colors.text.inverse : theme.colors.text.primary }
+                                    { color: selectedCategory === category ? theme.colors.text.inverse : theme.colors.text.primary }
                                 ]}>
                                     {category}
                                 </Text>
@@ -462,20 +461,17 @@ export default function SupportPage() {
                                     style={[
                                         styles.filterChip,
                                         {
-                                            backgroundColor: filters.difficulty === difficulty ? theme.colors.status.info : theme.colors.backgroundSecondary,
-                                            borderColor: filters.difficulty === difficulty ? theme.colors.status.info : theme.colors.border,
+                                            backgroundColor: selectedDifficulty === difficulty ? theme.colors.status.info : theme.colors.backgroundSecondary,
+                                            borderColor: selectedDifficulty === difficulty ? theme.colors.status.info : theme.colors.border,
                                         }
                                     ]}
                                     onPress={() => {
-                                        setFilters(prev => ({
-                                            ...prev,
-                                            difficulty: prev.difficulty === difficulty ? undefined : difficulty
-                                        }));
+                                        setSelectedDifficulty(selectedDifficulty === difficulty ? '' : difficulty);
                                     }}
                                 >
                                     <Text style={[
                                         styles.filterChipText,
-                                        { color: filters.difficulty === difficulty ? theme.colors.text.inverse : theme.colors.text.primary }
+                                        { color: selectedDifficulty === difficulty ? theme.colors.text.inverse : theme.colors.text.primary }
                                     ]}>
                                         {difficulty}
                                     </Text>
@@ -788,13 +784,13 @@ export default function SupportPage() {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-            <TopNavBar
-                title="Help & Support"
-                subtitle="Documentation & Support"
-                showBackButton={true}
-            />
-
+        <SharedLayout
+            title="Help & Support"
+            onLogout={() => {
+                // Handle logout if needed
+                router.push('/login');
+            }}
+        >
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Tabs */}
                 {renderTabs()}
@@ -817,7 +813,7 @@ export default function SupportPage() {
                 onRequestClose={() => setShowArticleModal(false)}
             >
                 {selectedArticle && (
-                    <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
+                    <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
                         <View style={[styles.modalHeader, { borderBottomColor: theme.colors.border }]}>
                             <Text style={[styles.modalTitle, { color: theme.colors.text.primary }]}>
                                 Article Details
@@ -886,19 +882,14 @@ export default function SupportPage() {
                                 </View>
                             </View>
                         </ScrollView>
-                    </SafeAreaView>
+                    </View>
                 )}
             </Modal>
-
-            <BottomNavBar activeTab="support" />
-        </SafeAreaView>
+        </SharedLayout>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
     content: {
         flex: 1,
     },
