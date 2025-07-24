@@ -42,6 +42,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import BottomNavBar from '@/components/BottomNavBar';
 import TopNavBar from '@/components/TopNavBar';
+import SupplierAddForm from '@/components/forms/SupplierAddForm';
 
 // Interfaces
 interface Supplier {
@@ -195,6 +196,7 @@ export default function SuppliersPage() {
   const [suppliers] = useState<Supplier[]>(mockSuppliers);
   const [filters, setFilters] = useState<SupplierFilters>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [showSupplierForm, setShowSupplierForm] = useState(false);
 
   const filteredSuppliers = useMemo(() => {
     return suppliers.filter(supplier => {
@@ -277,6 +279,21 @@ export default function SuppliersPage() {
         Alert.alert('Contact Supplier', `Contacting ${supplier.contactPerson} at ${supplier.phone}`);
         break;
     }
+  };
+
+  const handleAddSupplier = () => {
+    if (!hasPermission('suppliers', 'add')) {
+      Alert.alert('Permission Denied', 'You do not have permission to add suppliers.');
+      return;
+    }
+    setShowSupplierForm(true);
+  };
+
+  const handleSupplierSubmit = (data: any) => {
+    console.log('Supplier form submitted:', data);
+    // Here you would normally add the supplier to your database
+    Alert.alert('Success', 'Supplier added successfully!');
+    setShowSupplierForm(false);
   };
 
   const renderKPICards = () => (
@@ -521,7 +538,7 @@ export default function SuppliersPage() {
             {hasPermission('suppliers', 'add') && (
               <TouchableOpacity 
                 style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-                onPress={() => router.push('/add')}
+                onPress={handleAddSupplier}
               >
                 <Plus size={20} color={theme.colors.text.inverse} />
               </TouchableOpacity>
@@ -581,6 +598,13 @@ export default function SuppliersPage() {
           }
         />
       </ScrollView>
+
+      {/* Supplier Add Form */}
+      <SupplierAddForm
+        visible={showSupplierForm}
+        onClose={() => setShowSupplierForm(false)}
+        onSubmit={handleSupplierSubmit}
+      />
 
       <BottomNavBar activeTab="suppliers" />
     </SafeAreaView>

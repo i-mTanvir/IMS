@@ -2,6 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, TouchableOpacity, Animated, StyleSheet, Dimensions, Text, TouchableWithoutFeedback, Platform } from 'react-native';
 import { Plus, Package, Users, Tag, Truck, UserPlus, LucideIcon } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import ProductAddForm from './forms/ProductAddForm';
+import CustomerAddForm from './forms/CustomerAddForm';
+import CategoryAddForm from './forms/CategoryAddForm';
+import SupplierAddForm from './forms/SupplierAddForm';
+import RoleAddForm from './forms/RoleAddForm';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -13,7 +18,7 @@ interface MenuAction {
 }
 
 interface FloatingActionMenuProps {
-  onMenuItemPress: (action: MenuAction) => void;
+  onMenuItemPress?: (action: MenuAction) => void;
 }
 
 interface AnimationValues {
@@ -37,6 +42,13 @@ export default function FloatingActionMenu({ onMenuItemPress }: FloatingActionMe
     isAnimating: false,
     activeButton: null,
   });
+
+  // Form visibility states
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [showSupplierForm, setShowSupplierForm] = useState(false);
+  const [showRoleForm, setShowRoleForm] = useState(false);
 
   // Enhanced menu actions configuration with better colors
   const menuActions: MenuAction[] = [
@@ -178,7 +190,31 @@ export default function FloatingActionMenu({ onMenuItemPress }: FloatingActionMe
 
   const handleMenuItemPress = (action: MenuAction) => {
     setMenuState(prev => ({ ...prev, activeButton: action.id }));
-    onMenuItemPress(action);
+    
+    // Show the appropriate form based on the action id
+    switch(action.id) {
+      case 'products':
+        setShowProductForm(true);
+        break;
+      case 'customer':
+        setShowCustomerForm(true);
+        break;
+      case 'category':
+        setShowCategoryForm(true);
+        break;
+      case 'suppliers':
+        setShowSupplierForm(true);
+        break;
+      case 'role':
+        setShowRoleForm(true);
+        break;
+    }
+    
+    // Also call the original onMenuItemPress if provided
+    if (onMenuItemPress) {
+      onMenuItemPress(action);
+    }
+    
     closeMenu();
   };
 
@@ -229,6 +265,32 @@ export default function FloatingActionMenu({ onMenuItemPress }: FloatingActionMe
         <Text style={styles.menuButtonLabel}>{action.label}</Text>
       </Animated.View>
     );
+  };
+
+  // Form submission handlers
+  const handleProductSubmit = (data: any) => {
+    console.log('Product form submitted:', data);
+    setShowProductForm(false);
+  };
+
+  const handleCustomerSubmit = (data: any) => {
+    console.log('Customer form submitted:', data);
+    setShowCustomerForm(false);
+  };
+
+  const handleCategorySubmit = (data: any) => {
+    console.log('Category form submitted:', data);
+    setShowCategoryForm(false);
+  };
+
+  const handleSupplierSubmit = (data: any) => {
+    console.log('Supplier form submitted:', data);
+    setShowSupplierForm(false);
+  };
+
+  const handleRoleSubmit = (data: any) => {
+    console.log('Role form submitted:', data);
+    setShowRoleForm(false);
   };
 
   const styles = StyleSheet.create({
@@ -415,6 +477,37 @@ export default function FloatingActionMenu({ onMenuItemPress }: FloatingActionMe
           />
         </Animated.View>
       </TouchableOpacity>
+
+      {/* Forms */}
+      <ProductAddForm 
+        visible={showProductForm} 
+        onClose={() => setShowProductForm(false)} 
+        onSubmit={handleProductSubmit} 
+      />
+      
+      <CustomerAddForm 
+        visible={showCustomerForm} 
+        onClose={() => setShowCustomerForm(false)} 
+        onSubmit={handleCustomerSubmit} 
+      />
+      
+      <CategoryAddForm 
+        visible={showCategoryForm} 
+        onClose={() => setShowCategoryForm(false)} 
+        onSubmit={handleCategorySubmit} 
+      />
+      
+      <SupplierAddForm 
+        visible={showSupplierForm} 
+        onClose={() => setShowSupplierForm(false)} 
+        onSubmit={handleSupplierSubmit} 
+      />
+      
+      <RoleAddForm
+        visible={showRoleForm}
+        onClose={() => setShowRoleForm(false)}
+        onSubmit={handleRoleSubmit}
+      />
     </>
   );
 }

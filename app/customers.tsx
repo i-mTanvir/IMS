@@ -42,6 +42,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import BottomNavBar from '@/components/BottomNavBar';
 import TopNavBar from '@/components/TopNavBar';
+import CustomerAddForm from '@/components/forms/CustomerAddForm';
 
 // Interfaces
 interface Customer {
@@ -305,6 +306,7 @@ export default function CustomersPage() {
   const [purchaseHistory] = useState<PurchaseHistory[]>(mockPurchaseHistory);
   const [filters, setFilters] = useState<CustomerFilters>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(customer => {
@@ -406,6 +408,21 @@ export default function CustomersPage() {
         Alert.alert('Send Reminder', `Sending payment reminder to ${item.name}`);
         break;
     }
+  };
+
+  const handleAddCustomer = () => {
+    if (!hasPermission('customers', 'add')) {
+      Alert.alert('Permission Denied', 'You do not have permission to add customers.');
+      return;
+    }
+    setShowCustomerForm(true);
+  };
+
+  const handleCustomerSubmit = (data: any) => {
+    console.log('Customer form submitted:', data);
+    // Here you would normally add the customer to your database
+    Alert.alert('Success', 'Customer added successfully!');
+    setShowCustomerForm(false);
   };
 
   const renderKPICards = () => (
@@ -783,7 +800,7 @@ export default function CustomersPage() {
             {hasPermission('customers', 'add') && (
               <TouchableOpacity 
                 style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-                onPress={() => router.push('/add')}
+                onPress={handleAddCustomer}
               >
                 <Plus size={20} color={theme.colors.text.inverse} />
               </TouchableOpacity>
@@ -864,6 +881,13 @@ export default function CustomersPage() {
           }
         />
       </ScrollView>
+
+      {/* Customer Add Form */}
+      <CustomerAddForm
+        visible={showCustomerForm}
+        onClose={() => setShowCustomerForm(false)}
+        onSubmit={handleCustomerSubmit}
+      />
 
       <BottomNavBar activeTab="customers" />
     </SafeAreaView>

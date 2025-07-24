@@ -31,6 +31,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import BottomNavBar from '@/components/BottomNavBar';
 import TopNavBar from '@/components/TopNavBar';
+import ProductAddForm from '@/components/forms/ProductAddForm';
 
 // Product interfaces
 interface Product {
@@ -179,6 +180,7 @@ export default function ProductsPage() {
   const [filters, setFilters] = useState<ProductFilters>({});
   const [refreshing, setRefreshing] = useState(false);
   const [selectedView, setSelectedView] = useState<'list' | 'grid'>('list');
+  const [showProductForm, setShowProductForm] = useState(false);
 
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
@@ -335,6 +337,21 @@ export default function ProductsPage() {
     );
   };
 
+  const handleAddProduct = () => {
+    if (!hasPermission('products', 'add')) {
+      Alert.alert('Permission Denied', 'You do not have permission to add products.');
+      return;
+    }
+    setShowProductForm(true);
+  };
+
+  const handleProductSubmit = (data: any) => {
+    console.log('Product form submitted:', data);
+    // Here you would normally add the product to your database
+    Alert.alert('Success', 'Product added successfully!');
+    setShowProductForm(false);
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <TopNavBar
@@ -351,7 +368,7 @@ export default function ProductsPage() {
             {hasPermission('products', 'add') && (
               <TouchableOpacity 
                 style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-                onPress={() => router.push('/add')}
+                onPress={handleAddProduct}
               >
                 <Plus size={20} color={theme.colors.text.inverse} />
               </TouchableOpacity>
@@ -405,6 +422,13 @@ export default function ProductsPage() {
             </Text>
           </View>
         }
+      />
+
+      {/* Product Add Form */}
+      <ProductAddForm
+        visible={showProductForm}
+        onClose={() => setShowProductForm(false)}
+        onSubmit={handleProductSubmit}
       />
 
       <BottomNavBar activeTab="search" />
