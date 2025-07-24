@@ -33,8 +33,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import BottomNavBar from '@/components/BottomNavBar';
-import TopNavBar from '@/components/TopNavBar';
+import SharedLayout from '@/components/SharedLayout';
 
 // Interfaces
 interface Location {
@@ -718,29 +717,22 @@ export default function InventoryPage() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <TopNavBar
-        title="Inventory Management"
-        subtitle={`${getCurrentData().length} ${activeTab}`}
-        showBackButton={true}
-        rightContent={
-          <View style={styles.headerActions}>
-            <TouchableOpacity 
-              style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-            >
-              <Download size={20} color={theme.colors.primary} />
-            </TouchableOpacity>
-            {hasPermission('inventory', 'add') && (
-              <TouchableOpacity 
-                style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-                onPress={() => router.push('/add')}
-              >
-                <Plus size={20} color={theme.colors.text.inverse} />
-              </TouchableOpacity>
-            )}
-          </View>
-        }
-      />
+    <SharedLayout title="Inventory">
+      <View style={styles.headerActions}>
+        <TouchableOpacity 
+          style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
+        >
+          <Download size={20} color={theme.colors.primary} />
+        </TouchableOpacity>
+        {hasPermission('inventory', 'add') && (
+          <TouchableOpacity 
+            style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
+            onPress={() => router.push('/add')}
+          >
+            <Plus size={20} color={theme.colors.text.inverse} />
+          </TouchableOpacity>
+        )}
+      </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* KPI Cards */}
@@ -796,9 +788,7 @@ export default function InventoryPage() {
           }
         />
       </ScrollView>
-
-      <BottomNavBar activeTab="inventory" />
-    </SafeAreaView>
+    </SharedLayout>
   );
 }
 

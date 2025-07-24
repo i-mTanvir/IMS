@@ -6,18 +6,23 @@ import {
   StyleSheet,
   Platform,
   StatusBar,
+  Dimensions,
+  Image,
 } from 'react-native';
 import {
   Menu,
   Calendar,
   Bell,
-  Sun,
-  Moon,
   Search,
   ArrowLeft,
+  X,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
+
+const { width } = Dimensions.get('window');
+const isMobile = width < 768;
+const isTablet = width >= 768 && width < 1024;
 
 interface TopNavBarProps {
   title?: string;
@@ -27,13 +32,16 @@ interface TopNavBarProps {
   showSearch?: boolean;
   showCalendar?: boolean;
   showNotifications?: boolean;
-  showThemeToggle?: boolean;
+  showProfile?: boolean;
   onMenuPress?: () => void;
   onSearchPress?: () => void;
   onCalendarPress?: () => void;
   onNotificationPress?: () => void;
+  onProfilePress?: () => void;
   rightContent?: React.ReactNode;
   backgroundColor?: string;
+  sidebarOpen?: boolean;
+  originalTitle?: string; // Store the original title to restore when sidebar closes
 }
 
 export default function TopNavBar({
@@ -44,15 +52,18 @@ export default function TopNavBar({
   showSearch = false,
   showCalendar = true,
   showNotifications = true,
-  showThemeToggle = true,
+  showProfile = true,
   onMenuPress,
   onSearchPress,
   onCalendarPress,
   onNotificationPress,
+  onProfilePress,
   rightContent,
   backgroundColor,
+  sidebarOpen = false,
+  originalTitle,
 }: TopNavBarProps) {
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const router = useRouter();
 
   const handleBackPress = () => {
@@ -70,6 +81,22 @@ export default function TopNavBar({
       day: 'numeric',
       year: 'numeric',
     });
+  };
+
+  const handleProfilePress = () => {
+    if (onProfilePress) {
+      onProfilePress();
+    } else {
+      router.push('/profile');
+    }
+  };
+
+  // Determine what title to show based on sidebar state
+  const getDisplayTitle = () => {
+    if (sidebarOpen && isMobile) {
+      return 'Menu';
+    }
+    return originalTitle || title;
   };
 
   const styles = StyleSheet.create({
@@ -151,6 +178,33 @@ export default function TopNavBar({
       borderRadius: 4,
       backgroundColor: theme.colors.status.error,
     },
+    profileButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.backgroundSecondary,
+    },
+    profileImage: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+    },
+    profileFallback: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: theme.colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    profileText: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: theme.colors.text.inverse,
+    },
   });
 
   return (
@@ -171,12 +225,16 @@ export default function TopNavBar({
               onPress={onMenuPress}
               activeOpacity={0.7}
             >
-              <Menu size={24} color={theme.colors.text.primary} />
+              {sidebarOpen ? (
+                <X size={24} color={theme.colors.text.primary} />
+              ) : (
+                <Menu size={24} color={theme.colors.text.primary} />
+              )}
             </TouchableOpacity>
           ) : null}
 
           <View style={styles.titleContainer}>
-            {title && <Text style={styles.title}>{title}</Text>}
+            {(title || originalTitle) && <Text style={styles.title}>{getDisplayTitle()}</Text>}
             {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
           </View>
         </View>
@@ -184,8 +242,9 @@ export default function TopNavBar({
         <View style={styles.topNavActions}>
           {rightContent || (
             <>
-              <Text style={styles.dateText}>{getCurrentDate()}</Text>
-              
+              {/* Hide date on mobile, show on tablet and desktop */}
+              {!isMobile && <Text style={styles.dateText}>{getCurrentDate()}</Text>}
+
               {showSearch && (
                 <TouchableOpacity
                   style={[styles.iconButton, styles.searchButton]}
@@ -196,7 +255,8 @@ export default function TopNavBar({
                 </TouchableOpacity>
               )}
 
-              {showCalendar && (
+              {/* Hide calendar on mobile, show on tablet and desktop */}
+              {showCalendar && !isMobile && (
                 <TouchableOpacity
                   style={styles.iconButton}
                   onPress={onCalendarPress}
@@ -213,22 +273,19 @@ export default function TopNavBar({
                   activeOpacity={0.7}
                 >
                   <Bell size={20} color={theme.colors.text.secondary} />
-                  {/* You can add notification badge here */}
                   <View style={styles.notificationBadge} />
                 </TouchableOpacity>
               )}
 
-              {showThemeToggle && (
+              {showProfile && (
                 <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={toggleTheme}
+                  style={styles.profileButton}
+                  onPress={handleProfilePress}
                   activeOpacity={0.7}
                 >
-                  {isDark ? (
-                    <Sun size={20} color={theme.colors.text.secondary} />
-                  ) : (
-                    <Moon size={20} color={theme.colors.text.secondary} />
-                  )}
+                  <View style={styles.profileFallback}>
+                    <Text style={styles.profileText}>U</Text>
+                  </View>
                 </TouchableOpacity>
               )}
             </>

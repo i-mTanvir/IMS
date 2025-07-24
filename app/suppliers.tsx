@@ -40,8 +40,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import BottomNavBar from '@/components/BottomNavBar';
-import TopNavBar from '@/components/TopNavBar';
+import SharedLayout from '@/components/SharedLayout';
 import SupplierAddForm from '@/components/forms/SupplierAddForm';
 
 // Interfaces
@@ -523,29 +522,22 @@ export default function SuppliersPage() {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <TopNavBar
-        title="Supplier Management"
-        subtitle={`${filteredSuppliers.length} suppliers`}
-        showBackButton={true}
-        rightContent={
-          <View style={styles.headerActions}>
-            <TouchableOpacity 
-              style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-            >
-              <Download size={20} color={theme.colors.primary} />
-            </TouchableOpacity>
-            {hasPermission('suppliers', 'add') && (
-              <TouchableOpacity 
-                style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-                onPress={handleAddSupplier}
-              >
-                <Plus size={20} color={theme.colors.text.inverse} />
-              </TouchableOpacity>
-            )}
-          </View>
-        }
-      />
+    <SharedLayout title="Suppliers">
+      <View style={styles.headerActions}>
+        <TouchableOpacity 
+          style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
+        >
+          <Download size={20} color={theme.colors.primary} />
+        </TouchableOpacity>
+        {hasPermission('suppliers', 'add') && (
+          <TouchableOpacity 
+            style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
+            onPress={handleAddSupplier}
+          >
+            <Plus size={20} color={theme.colors.text.inverse} />
+          </TouchableOpacity>
+        )}
+      </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* KPI Cards */}
@@ -605,9 +597,7 @@ export default function SuppliersPage() {
         onClose={() => setShowSupplierForm(false)}
         onSubmit={handleSupplierSubmit}
       />
-
-      <BottomNavBar activeTab="suppliers" />
-    </SafeAreaView>
+    </SharedLayout>
   );
 }
 

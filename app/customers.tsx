@@ -40,8 +40,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import BottomNavBar from '@/components/BottomNavBar';
-import TopNavBar from '@/components/TopNavBar';
+import SharedLayout from '@/components/SharedLayout';
 import CustomerAddForm from '@/components/forms/CustomerAddForm';
 
 // Interfaces
@@ -785,29 +784,22 @@ export default function CustomersPage() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <TopNavBar
-        title="Customer Management"
-        subtitle={`${getCurrentData().length} ${activeTab.replace('-', ' ')}`}
-        showBackButton={true}
-        rightContent={
-          <View style={styles.headerActions}>
-            <TouchableOpacity 
-              style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-            >
-              <Download size={20} color={theme.colors.primary} />
-            </TouchableOpacity>
-            {hasPermission('customers', 'add') && (
-              <TouchableOpacity 
-                style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-                onPress={handleAddCustomer}
-              >
-                <Plus size={20} color={theme.colors.text.inverse} />
-              </TouchableOpacity>
-            )}
-          </View>
-        }
-      />
+    <SharedLayout title="Customers">
+      <View style={styles.headerActions}>
+        <TouchableOpacity 
+          style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
+        >
+          <Download size={20} color={theme.colors.primary} />
+        </TouchableOpacity>
+        {hasPermission('customers', 'add') && (
+          <TouchableOpacity 
+            style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
+            onPress={handleAddCustomer}
+          >
+            <Plus size={20} color={theme.colors.text.inverse} />
+          </TouchableOpacity>
+        )}
+      </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* KPI Cards */}
@@ -888,9 +880,7 @@ export default function CustomersPage() {
         onClose={() => setShowCustomerForm(false)}
         onSubmit={handleCustomerSubmit}
       />
-
-      <BottomNavBar activeTab="customers" />
-    </SafeAreaView>
+    </SharedLayout>
   );
 }
 

@@ -39,8 +39,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import BottomNavBar from '@/components/BottomNavBar';
-import TopNavBar from '@/components/TopNavBar';
+import SharedLayout from '@/components/SharedLayout';
 
 // Types for mobile activity logs
 interface MobileActivityLog {
@@ -662,19 +661,12 @@ export default function LogsPage() {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-            <TopNavBar
-                title="Activity Logs"
-                subtitle={`${analytics.totalLogs} total activities`}
-                showBackButton={true}
-                rightContent={
-                    <TouchableOpacity
-                        style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-                    >
-                        <Download size={20} color={theme.colors.primary} />
-                    </TouchableOpacity>
-                }
-            />
+        <SharedLayout title="Activity Logs">
+            <TouchableOpacity
+                style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
+            >
+                <Download size={20} color={theme.colors.primary} />
+            </TouchableOpacity>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* KPI Cards */}
@@ -783,9 +775,7 @@ export default function LogsPage() {
                     </SafeAreaView>
                 )}
             </Modal>
-
-            <BottomNavBar activeTab="logs" />
-        </SafeAreaView>
+        </SharedLayout>
     );
 }
 

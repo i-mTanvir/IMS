@@ -40,8 +40,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import BottomNavBar from '@/components/BottomNavBar';
-import TopNavBar from '@/components/TopNavBar';
+import SharedLayout from '@/components/SharedLayout';
 import { Sample, SampleFilters, SampleStatus, SamplePurpose, DeliveryMethod, SampleAnalytics } from '@/types/sample';
 
 // Mock sample data
@@ -687,29 +686,22 @@ export default function SamplesPage() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <TopNavBar
-        title="Sample Tracking"
-        subtitle={`${filteredSamples.length} samples`}
-        showBackButton={true}
-        rightContent={
-          <View style={styles.headerActions}>
-            <TouchableOpacity 
-              style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-            >
-              <Download size={20} color={theme.colors.primary} />
-            </TouchableOpacity>
-            {hasPermission('samples', 'add') && (
-              <TouchableOpacity 
-                style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-                onPress={() => router.push('/add')}
-              >
-                <Plus size={20} color={theme.colors.text.inverse} />
-              </TouchableOpacity>
-            )}
-          </View>
-        }
-      />
+    <SharedLayout title="Sample Tracking">
+      <View style={styles.headerActions}>
+        <TouchableOpacity 
+          style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
+        >
+          <Download size={20} color={theme.colors.primary} />
+        </TouchableOpacity>
+        {hasPermission('samples', 'add') && (
+          <TouchableOpacity 
+            style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
+            onPress={() => router.push('/add')}
+          >
+            <Plus size={20} color={theme.colors.text.inverse} />
+          </TouchableOpacity>
+        )}
+      </View>
 
       <ScrollView 
         style={styles.content}
@@ -755,9 +747,7 @@ export default function SamplesPage() {
         {/* Tab Content */}
         {renderTabContent()}
       </ScrollView>
-
-      <BottomNavBar activeTab="samples" />
-    </SafeAreaView>
+    </SharedLayout>
   );
 }
 

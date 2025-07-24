@@ -16,8 +16,7 @@ import { LayoutDashboard, Package, Warehouse, ShoppingCart, Users, Truck, FileTe
 import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import BottomNavBar from '@/components/BottomNavBar';
-import TopNavBar from '@/components/TopNavBar';
+import SharedLayout from '@/components/SharedLayout';
 import PieChart from 'react-native-pie-chart';
 import MiniCalendarModal from '@/components/calendar/MiniCalendarModal';
 import { CalendarEventData } from '@/utils/calendarUtils';
@@ -145,7 +144,6 @@ export default function Dashboard() {
   const { theme, isDark, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [chartPeriod, setChartPeriod] = useState('1W');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   
   // Calendar state
@@ -255,154 +253,11 @@ export default function Dashboard() {
     layout: {
       flex: 1,
       flexDirection: 'row',
+      marginLeft: !isMobile ? 260 : 0,
     },
-    sidebar: {
-      width: 260,
-      borderRightWidth: 1,
-      borderRightColor: theme.colors.border,
-      paddingVertical: theme.spacing.lg,
-      position: isMobile ? 'absolute' : 'relative',
-      top: 0,
-      left: sidebarOpen || !isMobile ? 0 : -260,
-      bottom: 0,
-      zIndex: 1000,
-      elevation: isMobile ? 10 : 0,
-      backgroundColor: theme.colors.card,
-    },
-    mobileHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: theme.spacing.lg,
-      paddingBottom: theme.spacing.md,
-    },
-    mobileHeaderLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-    },
-    logoIcon: {
-      width: 28,
-      height: 28,
-      borderRadius: theme.borderRadius.sm,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: theme.spacing.sm,
-      backgroundColor: theme.colors.primary,
-    },
-    logoText: {
-      fontSize: 12,
-      fontWeight: 'bold',
-      color: theme.colors.text.inverse,
-    },
-    logoTitle: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: theme.colors.text.primary,
-    },
-    closeButton: {
-      padding: theme.spacing.xs,
-      marginLeft: theme.spacing.sm,
-    },
-    overlay: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: theme.colors.overlay,
-      zIndex: 999,
-    },
-    logo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: theme.spacing.lg,
-      marginBottom: theme.spacing.xl,
-    },
-    desktopLogoIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: theme.borderRadius.sm,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: theme.spacing.sm,
-      backgroundColor: theme.colors.primary,
-    },
-    desktopLogoText: {
-      fontSize: 14,
-      fontWeight: 'bold',
-      color: theme.colors.text.inverse,
-    },
-    desktopLogoTitle: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: theme.colors.text.primary,
-    },
-    userProfile: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: theme.spacing.lg,
-      marginBottom: theme.spacing.xl,
-    },
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: theme.spacing.md,
-      backgroundColor: theme.colors.primary,
-    },
-    avatarText: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: theme.colors.text.inverse,
-    },
-    userInfo: {
-      flex: 1,
-    },
-    userName: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.colors.text.primary,
-    },
-    userRole: {
-      fontSize: 12,
-      color: theme.colors.text.secondary,
-    },
-    menu: {
-      flex: 1,
-      paddingHorizontal: theme.spacing.md,
-    },
-    menuItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing.md,
-      borderRadius: theme.borderRadius.md,
-      marginBottom: theme.spacing.xs,
-    },
-    menuItemText: {
-      marginLeft: theme.spacing.md,
-      fontSize: 14,
-      color: theme.colors.text.secondary,
-    },
-    logoutButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.lg,
-      marginTop: theme.spacing.sm,
-      marginHorizontal: theme.spacing.md,
-    },
-    logoutText: {
-      marginLeft: theme.spacing.md,
-      fontSize: 13,
-      color: theme.colors.status.error,
-    },
+
     mainContent: {
       flex: 1,
-      marginLeft: isMobile ? 0 : 0,
     },
 
     content: {
@@ -1099,83 +954,7 @@ export default function Dashboard() {
     );
   });
 
-  const Sidebar = () => (
-    <View style={styles.sidebar}>
-      {isMobile && (
-        <View style={styles.mobileHeader}>
-          <View style={styles.mobileHeaderLeft}>
-            <View style={styles.logoIcon}>
-              <Text style={styles.logoText}>ST</Text>
-            </View>
-            <Text style={styles.logoTitle}>SERRANO TEX</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setSidebarOpen(false)}
-          >
-            <X size={20} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-        </View>
-      )}
-      {!isMobile && (
-        <View style={styles.logo}>
-          <View style={styles.desktopLogoIcon}>
-            <Text style={styles.desktopLogoText}>ST</Text>
-          </View>
-          <Text style={styles.desktopLogoTitle}>SERRANO TEX</Text>
-        </View>
-      )}
-      <View style={styles.userProfile}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {user?.name?.split(' ').map(n => n[0]).join('') || 'U'}
-          </Text>
-        </View>
-        <View style={styles.userInfo}>
-          <Text style={styles.userName}>{user?.name || 'User'}</Text>
-          <Text style={styles.userRole}>{user?.role || 'User'}</Text>
-        </View>
-      </View>
-      <ScrollView style={styles.menu} showsVerticalScrollIndicator={false}>
-        {menuItems.map((item, index) => {
-          const isActive = isMenuItemActive(item.route);
-          return (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.menuItem,
-                isActive && { backgroundColor: theme.colors.primary }
-              ]}
-              onPress={() => handleMenuItemPress(item)}
-            >
-              <item.icon 
-                size={20} 
-                color={isActive ? theme.colors.text.inverse : theme.colors.text.secondary} 
-              />
-              <Text style={[
-                styles.menuItemText,
-                isActive && { color: theme.colors.text.inverse, fontWeight: '500' }
-              ]}>
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-      <TouchableOpacity 
-        style={styles.logoutButton}
-        onPress={() => {
-          setShowLogoutModal(true);
-          if (isMobile) {
-            setSidebarOpen(false);
-          }
-        }}
-      >
-        <LogOut size={18} color={theme.colors.status.error} />
-        <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
-    </View>
-  );
+
 
   // Add interface for current KPI data
   interface CurrentKPIData {
@@ -1193,23 +972,13 @@ export default function Dashboard() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.layout}>
-        {isMobile && sidebarOpen && (
-          <TouchableOpacity 
-            style={styles.overlay} 
-            onPress={() => setSidebarOpen(false)}
-            activeOpacity={1}
-          />
-        )}
-        <Sidebar />
-        <View style={styles.mainContent}>
-          <TopNavBar
-            showMenuButton={isMobile}
-            onMenuPress={() => setSidebarOpen(!sidebarOpen)}
-            onCalendarPress={handleCalendarPress}
-          />
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+    <SharedLayout
+      title="Dashboard"
+      onLogout={() => {
+        setShowLogoutModal(true);
+      }}
+    >
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {isLoading ? (
               <LoadingIndicator />
             ) : (
@@ -1344,10 +1113,7 @@ export default function Dashboard() {
                 )}
               </>
             )}
-          </ScrollView>
-        </View>
-      </View>
-      <BottomNavBar activeTab="home" />
+      </ScrollView>
       <Modal
         visible={showLogoutModal}
         transparent
@@ -1386,7 +1152,7 @@ export default function Dashboard() {
         selectedDate={selectedDate}
         eventData={mockCalendarEvents}
       />
-    </SafeAreaView>
+    </SharedLayout>
   );
 }
 

@@ -40,8 +40,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import BottomNavBar from '@/components/BottomNavBar';
-import TopNavBar from '@/components/TopNavBar';
+import SharedLayout from '@/components/SharedLayout';
 
 // Types for mobile notifications
 interface MobileNotification {
@@ -644,20 +643,13 @@ export default function NotificationPage() {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-            <TopNavBar
-                title="Notifications"
-                subtitle={`${analytics.unreadNotifications} unread`}
-                showBackButton={true}
-                rightContent={
-                    <TouchableOpacity
-                        style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-                        onPress={() => router.push('/settings')}
-                    >
-                        <Settings size={20} color={theme.colors.primary} />
-                    </TouchableOpacity>
-                }
-            />
+        <SharedLayout title="Notifications">
+            <TouchableOpacity
+                style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
+                onPress={() => router.push('/settings')}
+            >
+                <Settings size={20} color={theme.colors.primary} />
+            </TouchableOpacity>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* KPI Cards */}
@@ -763,9 +755,7 @@ export default function NotificationPage() {
                     </SafeAreaView>
                 )}
             </Modal>
-
-            <BottomNavBar activeTab="notifications" />
-        </SafeAreaView>
+        </SharedLayout>
     );
 }
 const

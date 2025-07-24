@@ -29,8 +29,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import BottomNavBar from '@/components/BottomNavBar';
-import TopNavBar from '@/components/TopNavBar';
+import SharedLayout from '@/components/SharedLayout';
 import ProductAddForm from '@/components/forms/ProductAddForm';
 
 // Product interfaces
@@ -353,29 +352,22 @@ export default function ProductsPage() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <TopNavBar
-        title="Inventory"
-        subtitle={`${filteredProducts.length} products`}
-        showBackButton={true}
-        rightContent={
-          <View style={styles.headerActions}>
-            <TouchableOpacity 
-              style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-            >
-              <Download size={20} color={theme.colors.primary} />
-            </TouchableOpacity>
-            {hasPermission('products', 'add') && (
-              <TouchableOpacity 
-                style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-                onPress={handleAddProduct}
-              >
-                <Plus size={20} color={theme.colors.text.inverse} />
-              </TouchableOpacity>
-            )}
-          </View>
-        }
-      />
+    <SharedLayout title="Products">
+      <View style={styles.headerActions}>
+        <TouchableOpacity 
+          style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
+        >
+          <Download size={20} color={theme.colors.primary} />
+        </TouchableOpacity>
+        {hasPermission('products', 'add') && (
+          <TouchableOpacity 
+            style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
+            onPress={handleAddProduct}
+          >
+            <Plus size={20} color={theme.colors.text.inverse} />
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Search and Filters */}
       <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
@@ -431,8 +423,7 @@ export default function ProductsPage() {
         onSubmit={handleProductSubmit}
       />
 
-      <BottomNavBar activeTab="search" />
-    </SafeAreaView>
+    </SharedLayout>
   );
 }
 
