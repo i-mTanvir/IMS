@@ -152,41 +152,17 @@ export default function Dashboard() {
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState({
-    sales: false,
-    kpi: false,
-    customers: false
+    sales: true,
+    kpi: true,
+    customers: true
   });
   
-  // Simulate data loading
+  // Remove artificial loading delays - data loads instantly
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Simulate API calls with different timings
-        setTimeout(() => {
-          setDataLoaded(prev => ({ ...prev, sales: true }));
-        }, 800);
-        
-        setTimeout(() => {
-          setDataLoaded(prev => ({ ...prev, kpi: true }));
-        }, 1200);
-        
-        setTimeout(() => {
-          setDataLoaded(prev => ({ ...prev, customers: true }));
-        }, 1500);
-        
-        // Set overall loading to false when all data is loaded
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 1600);
-      } catch (error) {
-        console.error('Error loading dashboard data:', error);
-        setIsLoading(false);
-      }
-    };
-    
-    loadData();
+    // Data is already available, no need for loading simulation
+    setIsLoading(false);
   }, []);
 
   const menuItems = [

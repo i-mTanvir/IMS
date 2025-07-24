@@ -477,6 +477,9 @@ export default function CategoryAddForm({ visible, onClose, onSubmit, existingCa
                   style={styles.content}
                   showsVerticalScrollIndicator={false}
                   contentContainerStyle={{ paddingBottom: 20 }}
+                  bounces={true}
+                  scrollEventThrottle={16}
+                  decelerationRate="normal"
                 >
                   {renderBasicInfoStep()}
                 </ScrollView>

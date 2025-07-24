@@ -62,25 +62,49 @@ interface ProductAddFormProps {
   existingProduct?: any;
 }
 
-// Mock data for dropdowns
+// Mock data for dropdowns - expanded for better search experience
 const categories = [
   { id: '1', name: 'Sofa Fabrics', icon: '🛋️' },
   { id: '2', name: 'Curtain Fabrics', icon: '🪟' },
   { id: '3', name: 'Artificial Leather', icon: '👜' },
   { id: '4', name: 'Garments', icon: '👕' },
+  { id: '5', name: 'Upholstery Fabrics', icon: '🪑' },
+  { id: '6', name: 'Denim Fabrics', icon: '👖' },
+  { id: '7', name: 'Cotton Fabrics', icon: '🌿' },
+  { id: '8', name: 'Silk Fabrics', icon: '🎀' },
+  { id: '9', name: 'Wool Fabrics', icon: '🐑' },
+  { id: '10', name: 'Linen Fabrics', icon: '🌾' },
+  { id: '11', name: 'Polyester Fabrics', icon: '🧵' },
+  { id: '12', name: 'Velvet Fabrics', icon: '✨' },
+  { id: '13', name: 'Canvas Fabrics', icon: '🎨' },
+  { id: '14', name: 'Mesh Fabrics', icon: '🕸️' },
+  { id: '15', name: 'Lace Fabrics', icon: '🌸' },
 ];
 
 const suppliers = [
   { id: '1', name: 'Textile Mills Ltd', company: 'Premium Fabrics Co.', rating: 4.8 },
   { id: '2', name: 'Global Textiles', company: 'International Suppliers', rating: 4.6 },
   { id: '3', name: 'Local Fabric House', company: 'Dhaka Textiles', rating: 4.9 },
+  { id: '4', name: 'Asian Textile Corp', company: 'Quality Fabrics Ltd', rating: 4.7 },
+  { id: '5', name: 'Modern Fabrics', company: 'Contemporary Textiles', rating: 4.5 },
+  { id: '6', name: 'Heritage Textiles', company: 'Traditional Fabrics', rating: 4.8 },
+  { id: '7', name: 'Eco Fabrics Ltd', company: 'Sustainable Textiles', rating: 4.9 },
+  { id: '8', name: 'Luxury Textiles', company: 'Premium Materials', rating: 4.6 },
+  { id: '9', name: 'Industrial Fabrics', company: 'Heavy Duty Textiles', rating: 4.4 },
+  { id: '10', name: 'Fashion Fabrics', company: 'Trendy Textiles', rating: 4.7 },
 ];
 
 const locations = [
   { id: '1', name: 'Warehouse 1', type: 'warehouse', icon: '🏭' },
   { id: '2', name: 'Warehouse 2', type: 'warehouse', icon: '🏭' },
-  { id: '3', name: 'Showroom 1', type: 'showroom', icon: '🏪' },
-  { id: '4', name: 'Showroom 2', type: 'showroom', icon: '🏪' },
+  { id: '3', name: 'Warehouse 3', type: 'warehouse', icon: '🏭' },
+  { id: '4', name: 'Showroom 1', type: 'showroom', icon: '🏪' },
+  { id: '5', name: 'Showroom 2', type: 'showroom', icon: '🏪' },
+  { id: '6', name: 'Storage A', type: 'storage', icon: '📦' },
+  { id: '7', name: 'Storage B', type: 'storage', icon: '📦' },
+  { id: '8', name: 'Main Store', type: 'store', icon: '🏬' },
+  { id: '9', name: 'Branch Store', type: 'store', icon: '🏬' },
+  { id: '10', name: 'Online Warehouse', type: 'warehouse', icon: '💻' },
 ];
 
 export default function ProductAddForm({ visible, onClose, onSubmit, existingProduct }: ProductAddFormProps) {
@@ -115,6 +139,12 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     supplier: false,
     location: false,
     paymentStatus: false,
+  });
+  
+  const [searchTexts, setSearchTexts] = useState({
+    category: '',
+    supplier: '',
+    location: '',
   });
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -281,6 +311,138 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     );
   };
 
+  const renderSearchableDropdown = (
+    type: 'category' | 'supplier' | 'location',
+    items: any[],
+    value: string,
+    onSelect: (item: any) => void,
+    placeholder: string
+  ) => {
+    const searchText = searchTexts[type];
+    const filteredItems = items.filter(item => 
+      (item.name || item.company || item).toLowerCase().includes(searchText.toLowerCase())
+    );
+
+    return (
+      <View style={styles.dropdownContainer}>
+        <View style={[
+          styles.searchInputContainer,
+          { borderColor: errors[type] ? theme.colors.status.error : theme.colors.primary + '30' },
+          showDropdowns[type] && styles.searchInputContainerActive,
+        ]}>
+          <TextInput
+            style={styles.searchInput}
+            value={showDropdowns[type] ? searchText : value}
+            onChangeText={(text) => {
+              setSearchTexts(prev => ({ ...prev, [type]: text }));
+              if (!showDropdowns[type]) {
+                const updatedDropdowns = {
+                  category: false,
+                  supplier: false,
+                  location: false,
+                  paymentStatus: false,
+                };
+                setShowDropdowns({
+                  ...updatedDropdowns,
+                  [type]: true
+                });
+              }
+            }}
+            onFocus={() => {
+              const updatedDropdowns = {
+                category: false,
+                supplier: false,
+                location: false,
+                paymentStatus: false,
+              };
+              setShowDropdowns({
+                ...updatedDropdowns,
+                [type]: true
+              });
+            }}
+            placeholder={value || placeholder}
+            placeholderTextColor={theme.colors.text.muted}
+          />
+          <TouchableOpacity
+            onPress={() => {
+              const updatedDropdowns = {
+                category: false,
+                supplier: false,
+                location: false,
+                paymentStatus: false,
+              };
+              setShowDropdowns({
+                ...updatedDropdowns,
+                [type]: !showDropdowns[type]
+              });
+            }}
+          >
+            <ChevronDown 
+              size={20} 
+              color={theme.colors.text.muted} 
+              style={[
+                styles.dropdownIcon,
+                showDropdowns[type] && { transform: [{ rotate: '180deg' }] }
+              ]}
+            />
+          </TouchableOpacity>
+        </View>
+        
+        {showDropdowns[type] && (
+          <View 
+            style={[
+              styles.dropdownList,
+              { backgroundColor: theme.colors.background }
+            ]}
+          >
+            <ScrollView 
+              nestedScrollEnabled={true}
+              style={{ maxHeight: 200 }}
+              showsVerticalScrollIndicator={false}
+              bounces={true}
+              scrollEventThrottle={16}
+              decelerationRate="normal"
+            >
+              {filteredItems.length > 0 ? filteredItems.map((item, index) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.dropdownItem,
+                    index === filteredItems.length - 1 && { borderBottomWidth: 0 }
+                  ]}
+                  onPress={() => {
+                    onSelect(item);
+                    setSearchTexts(prev => ({ ...prev, [type]: '' }));
+                    setShowDropdowns(prev => ({ ...prev, [type]: false }));
+                  }}
+                >
+                  <View style={styles.dropdownItemContent}>
+                    {item.icon && <Text style={styles.dropdownItemIcon}>{item.icon}</Text>}
+                    <View style={styles.dropdownItemTextContainer}>
+                      <Text style={styles.dropdownItemText}>
+                        {item.name || item.company || item}
+                      </Text>
+                      {item.rating && (
+                        <View style={styles.ratingContainer}>
+                          <Star size={12} color="#FFD700" fill="#FFD700" />
+                          <Text style={styles.ratingText}>{item.rating}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )) : (
+                <View style={styles.noResultsContainer}>
+                  <Text style={styles.noResultsText}>No results found</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   const renderEnhancedDropdown = (
     type: keyof typeof showDropdowns,
     items: any[],
@@ -335,10 +497,13 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
             nestedScrollEnabled={true}
             style={{ maxHeight: 200 }}
             showsVerticalScrollIndicator={false}
+            bounces={true}
+            scrollEventThrottle={16}
+            decelerationRate="normal"
           >
             {items.map((item, index) => (
               <TouchableOpacity
-                key={item.id}
+                key={item.id || item}
                 style={[
                   styles.dropdownItem,
                   index === items.length - 1 && { borderBottomWidth: 0 }
@@ -469,12 +634,12 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
           
           <View style={[styles.inputGroup, styles.flex1]}>
             <Text style={[styles.label, styles.requiredLabel]}>Category *</Text>
-            {renderEnhancedDropdown(
+            {renderSearchableDropdown(
               'category',
               categories,
               formData.category,
               (item) => setFormData(prev => ({ ...prev, category: item.name })),
-              'Select category'
+              'Search or select category'
             )}
             {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
           </View>
@@ -593,24 +758,24 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
         <View style={styles.row}>
           <View style={[styles.inputGroup, styles.flex1]}>
             <Text style={[styles.label, styles.requiredLabel]}>Supplier *</Text>
-            {renderEnhancedDropdown(
+            {renderSearchableDropdown(
               'supplier',
               suppliers,
               formData.supplier,
               (item) => setFormData(prev => ({ ...prev, supplier: item.company })),
-              'Select supplier'
+              'Search or select supplier'
             )}
             {errors.supplier && <Text style={styles.errorText}>{errors.supplier}</Text>}
           </View>
           
           <View style={[styles.inputGroup, styles.flex1]}>
             <Text style={[styles.label, styles.requiredLabel]}>Location *</Text>
-            {renderEnhancedDropdown(
+            {renderSearchableDropdown(
               'location',
               locations,
               formData.location,
               (item) => setFormData(prev => ({ ...prev, location: item.name })),
-              'Select location'
+              'Search or select location'
             )}
             {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
           </View>
@@ -899,7 +1064,26 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     },
     dropdownContainer: {
       position: 'relative',
-      zIndex: 1000,
+      zIndex: 99999,
+    },
+    searchInputContainer: {
+      borderWidth: 2,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      backgroundColor: theme.colors.backgroundTertiary,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    searchInputContainerActive: {
+      borderColor: theme.colors.primary,
+      backgroundColor: theme.colors.primary + '10',
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 16,
+      color: theme.colors.text.primary,
+      fontWeight: '500',
     },
     dropdownButton: {
       borderWidth: 2,
@@ -933,8 +1117,8 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
       borderRadius: 12,
       marginTop: 4,
       maxHeight: 200,
-      zIndex: 1001,
-      elevation: 8,
+      zIndex: 999999,
+      elevation: 999999,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.15,
@@ -972,6 +1156,15 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
       color: '#FFD700',
       marginLeft: 4,
       fontWeight: '600',
+    },
+    noResultsContainer: {
+      padding: 20,
+      alignItems: 'center',
+    },
+    noResultsText: {
+      fontSize: 14,
+      color: theme.colors.text.muted,
+      fontStyle: 'italic',
     },
     paymentSection: {
       backgroundColor: theme.colors.backgroundSecondary,
@@ -1096,6 +1289,9 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
                   style={styles.content} 
                   showsVerticalScrollIndicator={false}
                   contentContainerStyle={{ paddingBottom: 20 }}
+                  bounces={true}
+                  scrollEventThrottle={16}
+                  decelerationRate="normal"
                 >
                   {renderCurrentStep()}
                 </ScrollView>

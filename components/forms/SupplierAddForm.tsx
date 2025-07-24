@@ -49,7 +49,6 @@ interface SupplierFormData {
   state: string;
   zipCode: string;
   country: string;
-  businessType: string;
   taxId: string;
   bankName: string;
   accountNumber: string;
@@ -69,13 +68,12 @@ interface SupplierAddFormProps {
   existingSupplier?: any;
 }
 
-// Enhanced business types with icons and descriptions
-const businessTypes = [
-  { id: 'manufacturer', name: 'Manufacturer', icon: '🏭', description: 'Produces goods directly' },
-  { id: 'distributor', name: 'Distributor', icon: '🚚', description: 'Distributes products to retailers' },
-  { id: 'wholesaler', name: 'Wholesaler', icon: '📦', description: 'Sells in bulk quantities' },
-  { id: 'retailer', name: 'Retailer', icon: '🏪', description: 'Sells directly to consumers' },
-  { id: 'service_provider', name: 'Service Provider', icon: '🔧', description: 'Provides services and support' },
+
+
+// Countries with flags
+const countries = [
+  { id: 'bangladesh', name: 'Bangladesh', icon: '🇧🇩' },
+  { id: 'china', name: 'China', icon: '🇨🇳' },
 ];
 
 export default function SupplierAddForm({ visible, onClose, onSubmit, existingSupplier }: SupplierAddFormProps) {
@@ -96,8 +94,7 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
     city: '',
     state: '',
     zipCode: '',
-    country: 'Pakistan',
-    businessType: '',
+    country: 'Bangladesh',
     taxId: '',
     bankName: '',
     accountNumber: '',
@@ -113,7 +110,7 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
   const [formData, setFormData] = useState<SupplierFormData>(initialFormState);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showDropdowns, setShowDropdowns] = useState({
-    businessType: false,
+    country: false,
   });
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -186,8 +183,7 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
           city: existingSupplier.city || '',
           state: existingSupplier.state || '',
           zipCode: existingSupplier.zipCode || '',
-          country: existingSupplier.country || 'Pakistan',
-          businessType: existingSupplier.businessType || '',
+          country: existingSupplier.country || 'Bangladesh',
           taxId: existingSupplier.taxId || '',
           bankName: existingSupplier.bankName || '',
           accountNumber: existingSupplier.accountNumber || '',
@@ -223,7 +219,7 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
 
   const handlePressOutside = () => {
     setShowDropdowns({
-      businessType: false,
+      country: false,
     });
   };
 
@@ -246,10 +242,6 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
 
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
-    }
-
-    if (!formData.businessType) {
-      newErrors.businessType = 'Business type is required';
     }
 
     if (!formData.address.trim()) {
@@ -309,7 +301,7 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
         ]}
         onPress={() => {
           setShowDropdowns(prev => {
-            const newState = { businessType: false };
+            const newState = { country: false };
             newState[type] = !prev[type];
             return newState;
           });
@@ -342,6 +334,9 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
             nestedScrollEnabled={true}
             style={{ maxHeight: 200 }}
             showsVerticalScrollIndicator={false}
+            bounces={true}
+            scrollEventThrottle={16}
+            decelerationRate="normal"
           >
             {items.map((item, index) => (
               <TouchableOpacity
@@ -484,18 +479,6 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
           />
           {errors.contactPerson && <Text style={styles.errorText}>{errors.contactPerson}</Text>}
         </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, styles.requiredLabel]}>Business Type *</Text>
-          {renderEnhancedDropdown(
-            'businessType',
-            businessTypes,
-            businessTypes.find(type => type.id === formData.businessType)?.name || '',
-            (item) => setFormData(prev => ({ ...prev, businessType: item.id })),
-            'Select business type'
-          )}
-          {errors.businessType && <Text style={styles.errorText}>{errors.businessType}</Text>}
-        </View>
       </View>
     </View>
   );
@@ -546,28 +529,7 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
           {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
         </View>
 
-        {/* Supplier Rating */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Supplier Rating</Text>
-          <View style={styles.ratingContainer}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <TouchableOpacity
-                key={star}
-                onPress={() => setFormData(prev => ({ ...prev, rating: star }))}
-                style={styles.starButton}
-              >
-                <Star
-                  size={32}
-                  color={star <= formData.rating ? '#FFD700' : theme.colors.text.muted}
-                  fill={star <= formData.rating ? '#FFD700' : 'transparent'}
-                />
-              </TouchableOpacity>
-            ))}
-            <Text style={styles.ratingText}>
-              ({formData.rating}/5)
-            </Text>
-          </View>
-        </View>
+
       </View>
     </View>
   );
@@ -630,13 +592,13 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
           </View>
           <View style={styles.addressInput}>
             <Text style={styles.label}>Country</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.country}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, country: text }))}
-              placeholder="Enter country"
-              placeholderTextColor={theme.colors.text.muted}
-            />
+            {renderEnhancedDropdown(
+              'country',
+              countries,
+              countries.find(country => country.name === formData.country)?.name || formData.country,
+              (item) => setFormData(prev => ({ ...prev, country: item.name })),
+              'Select country'
+            )}
           </View>
         </View>
 
@@ -942,7 +904,7 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
     },
     dropdownContainer: {
       position: 'relative',
-      zIndex: 1000,
+      zIndex: 99999,
     },
     dropdownButton: {
       flexDirection: 'row',
@@ -971,12 +933,12 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
       right: 0,
       borderRadius: 12,
       marginTop: 4,
-      elevation: 8,
+      elevation: 999999,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.15,
       shadowRadius: 8,
-      zIndex: 1001,
+      zIndex: 999999,
     },
     dropdownItem: {
       paddingHorizontal: 16,
@@ -1118,6 +1080,9 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
                   style={styles.content}
                   showsVerticalScrollIndicator={false}
                   contentContainerStyle={{ paddingBottom: 20 }}
+                  bounces={true}
+                  scrollEventThrottle={16}
+                  decelerationRate="normal"
                 >
                   {renderCurrentStep()}
                 </ScrollView>

@@ -24,7 +24,6 @@ import {
   Building,
   Camera,
   Check,
-  ChevronDown,
   Upload,
   Sparkles,
   UserPlus,
@@ -41,7 +40,6 @@ interface CustomerFormData {
   address: string;
   companyName: string;
   deliveryAddress: string;
-  customerType: 'regular' | 'wholesale' | 'retail';
   profileImage: string | null;
   sameAsAddress: boolean;
 }
@@ -53,12 +51,7 @@ interface CustomerAddFormProps {
   existingCustomer?: any;
 }
 
-// Customer types with enhanced display
-const customerTypes = [
-  { id: 'regular', name: 'Regular', icon: '👤', description: 'Individual customer' },
-  { id: 'wholesale', name: 'Wholesale', icon: '🏢', description: 'Bulk purchase customer' },
-  { id: 'retail', name: 'Retail', icon: '🛍️', description: 'Retail business customer' },
-];
+
 
 export default function CustomerAddForm({ visible, onClose, onSubmit, existingCustomer }: CustomerAddFormProps) {
   const { theme } = useTheme();
@@ -74,16 +67,13 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
     address: '',
     companyName: '',
     deliveryAddress: '',
-    customerType: 'regular',
     profileImage: null,
     sameAsAddress: false,
   };
 
   const [formData, setFormData] = useState<CustomerFormData>(initialFormState);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showDropdowns, setShowDropdowns] = useState({
-    customerType: false,
-  });
+
   const [currentStep, setCurrentStep] = useState(0);
 
   const canAddCustomer = hasPermission('customers', 'add');
@@ -149,7 +139,6 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
           address: existingCustomer.address || '',
           companyName: existingCustomer.companyName || '',
           deliveryAddress: existingCustomer.deliveryAddress || '',
-          customerType: existingCustomer.customerType || 'regular',
           profileImage: existingCustomer.profileImage || null,
           sameAsAddress: existingCustomer.sameAsAddress || false,
         });
@@ -169,9 +158,7 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
   }, [formData.sameAsAddress, formData.address]);
 
   const handlePressOutside = () => {
-    setShowDropdowns({
-      customerType: false,
-    });
+    // Handle outside press if needed
   };
 
   const validateForm = (): boolean => {
@@ -225,88 +212,7 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
     );
   };
 
-  const renderEnhancedDropdown = (
-    type: keyof typeof showDropdowns,
-    items: any[],
-    value: string,
-    onSelect: (item: any) => void,
-    placeholder: string
-  ) => (
-    <View style={styles.dropdownContainer}>
-      <TouchableOpacity
-        style={[
-          styles.dropdownButton,
-          { borderColor: errors[type] ? theme.colors.status.error : theme.colors.primary + '30' },
-          showDropdowns[type] && styles.dropdownButtonActive,
-        ]}
-        onPress={() => {
-          setShowDropdowns(prev => {
-            const newState = { customerType: false };
-            newState[type] = !prev[type];
-            return newState;
-          });
-        }}
-      >
-        <Text style={[
-          styles.dropdownButtonText,
-          { color: value ? theme.colors.text.primary : theme.colors.text.muted }
-        ]}>
-          {value || placeholder}
-        </Text>
-        <ChevronDown
-          size={20}
-          color={theme.colors.text.muted}
-          style={[
-            styles.dropdownIcon,
-            showDropdowns[type] && { transform: [{ rotate: '180deg' }] }
-          ]}
-        />
-      </TouchableOpacity>
 
-      {showDropdowns[type] && (
-        <View
-          style={[
-            styles.dropdownList,
-            { backgroundColor: theme.colors.background }
-          ]}
-        >
-          <ScrollView
-            nestedScrollEnabled={true}
-            style={{ maxHeight: 200 }}
-            showsVerticalScrollIndicator={false}
-          >
-            {items.map((item, index) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.dropdownItem,
-                  index === items.length - 1 && { borderBottomWidth: 0 }
-                ]}
-                onPress={() => {
-                  onSelect(item);
-                  setShowDropdowns(prev => ({ ...prev, [type]: false }));
-                }}
-              >
-                <View style={styles.dropdownItemContent}>
-                  {item.icon && <Text style={styles.dropdownItemIcon}>{item.icon}</Text>}
-                  <View style={styles.dropdownItemTextContainer}>
-                    <Text style={styles.dropdownItemText}>
-                      {item.name}
-                    </Text>
-                    {item.description && (
-                      <Text style={styles.dropdownItemDescription}>
-                        {item.description}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-    </View>
-  );
 
   const renderStepIndicator = () => (
     <View style={styles.stepIndicator}>
@@ -402,16 +308,7 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
           />
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Customer Type</Text>
-          {renderEnhancedDropdown(
-            'customerType',
-            customerTypes,
-            customerTypes.find(type => type.id === formData.customerType)?.name || '',
-            (item) => setFormData(prev => ({ ...prev, customerType: item.id as any })),
-            'Select customer type'
-          )}
-        </View>
+
       </View>
     </View>
   );
@@ -713,76 +610,7 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
       marginTop: 6,
       fontWeight: '500',
     },
-    dropdownContainer: {
-      position: 'relative',
-      zIndex: 1000,
-    },
-    dropdownButton: {
-      borderWidth: 2,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      backgroundColor: theme.colors.backgroundTertiary,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    dropdownButtonActive: {
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.colors.primary + '10',
-    },
-    dropdownButtonText: {
-      fontSize: 16,
-      flex: 1,
-      fontWeight: '500',
-    },
-    dropdownIcon: {
-      marginLeft: 8,
-    },
-    dropdownList: {
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      right: 0,
-      borderWidth: 2,
-      borderColor: theme.colors.primary + '30',
-      borderRadius: 12,
-      marginTop: 4,
-      maxHeight: 200,
-      zIndex: 1001,
-      elevation: 8,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-    },
-    dropdownItem: {
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border + '50',
-    },
-    dropdownItemContent: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    dropdownItemIcon: {
-      fontSize: 20,
-      marginRight: 12,
-    },
-    dropdownItemTextContainer: {
-      flex: 1,
-    },
-    dropdownItemText: {
-      fontSize: 16,
-      color: theme.colors.text.primary,
-      fontWeight: '500',
-    },
-    dropdownItemDescription: {
-      fontSize: 12,
-      color: theme.colors.text.muted,
-      marginTop: 2,
-    },
+
     checkboxContainer: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -901,6 +729,9 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
                   style={styles.content}
                   showsVerticalScrollIndicator={false}
                   contentContainerStyle={{ paddingBottom: 20 }}
+                  bounces={true}
+                  scrollEventThrottle={16}
+                  decelerationRate="normal"
                 >
                   {renderCurrentStep()}
                 </ScrollView>
