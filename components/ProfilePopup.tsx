@@ -85,7 +85,7 @@ export default function ProfilePopup({ visible, onClose, anchorPosition }: Profi
     overlay: {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: isMobile ? 'flex-end' : 'flex-start',
+      justifyContent: isMobile ? 'center' : 'flex-start', // Changed from 'flex-end' to 'center'
       alignItems: isMobile ? 'center' : 'flex-end',
       paddingTop: isMobile ? 0 : 60,
       paddingRight: isMobile ? 0 : 20,
@@ -223,9 +223,8 @@ export default function ProfilePopup({ visible, onClose, anchorPosition }: Profi
         activeOpacity={1}
         onPress={onClose}
       >
-        <View // Changed from TouchableOpacity to View
+        <View
           style={styles.popup}
-          // Removed onPress={(e) => e.stopPropagation()}
         >
           {/* Header with User Info */}
           <View style={styles.header}>

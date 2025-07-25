@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Home, Search, Plus, Clock, User, Bell, HelpCircle } from 'lucide-react-native';
+import { Home, Search, Plus, Clock, User, Bell, Repeat } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter, usePathname } from 'expo-router';
 import FloatingActionMenu from './FloatingActionMenu';
@@ -41,10 +41,10 @@ export default function BottomNavBar({ activeTab }: BottomNavBarProps) {
       route: '/sales',
     },
     {
-      id: 'support',
-      label: 'Support',
-      icon: HelpCircle,
-      route: '/support',
+      id: 'transfer',
+      label: 'Transfer',
+      icon: Repeat,
+      route: '/transfer',
     },
   ];
 
