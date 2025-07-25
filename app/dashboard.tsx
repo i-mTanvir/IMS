@@ -16,6 +16,7 @@ import { LayoutDashboard, Package, Warehouse, ShoppingCart, Users, Truck, FileTe
 import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useCustomNavigation } from '@/hooks/useCustomNavigation';
 import SharedLayout from '@/components/SharedLayout';
 import PieChart from 'react-native-pie-chart';
 import MiniCalendarModal from '@/components/calendar/MiniCalendarModal';
@@ -142,6 +143,7 @@ export default function Dashboard() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const { theme, isDark, toggleTheme } = useTheme();
+  const { handleBackPress } = useCustomNavigation();
   const [activeTab, setActiveTab] = useState(0);
   const [chartPeriod, setChartPeriod] = useState('1W');
   const [showLogoutModal, setShowLogoutModal] = useState(false);

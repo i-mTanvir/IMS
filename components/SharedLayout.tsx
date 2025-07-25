@@ -6,6 +6,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useCustomNavigation } from '@/hooks/useCustomNavigation';
 import TopNavBar from '@/components/TopNavBar';
 import AnimatedSidebar from '@/components/AnimatedSidebar';
 import BottomNavBar from '@/components/BottomNavBar';
@@ -32,6 +33,7 @@ export default function SharedLayout({
 }: SharedLayoutProps) {
   const { theme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { handleBackPress } = useCustomNavigation();
 
   const handleCalendarPress = () => {
     // Handle calendar press - you can implement calendar modal here

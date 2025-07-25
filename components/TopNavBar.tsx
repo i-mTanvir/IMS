@@ -19,7 +19,8 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
+import { useCustomNavigation } from '@/hooks/useCustomNavigation';
 import ProfilePopup from './ProfilePopup';
 
 const { width } = Dimensions.get('window');
@@ -68,15 +69,12 @@ export default function TopNavBar({
   const { theme } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [showProfilePopup, setShowProfilePopup] = useState(false);
+  const { handleBackPress } = useCustomNavigation();
 
-  const handleBackPress = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.push('/dashboard');
-    }
-  };
+  // Determine if we should show back button (not on dashboard)
+  const shouldShowBackButton = pathname !== '/dashboard' && !sidebarOpen;
 
   const getCurrentDate = () => {
     const date = new Date();
@@ -238,7 +236,7 @@ export default function TopNavBar({
       <View style={styles.container}>
         <View style={styles.topNav}>
           <View style={styles.topNavLeft}>
-            {showBackButton ? (
+            {shouldShowBackButton ? (
               <TouchableOpacity
                 style={styles.backButton}
                 onPress={handleBackPress}
