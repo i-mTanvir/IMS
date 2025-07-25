@@ -147,6 +147,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState(0);
   const [chartPeriod, setChartPeriod] = useState('1W');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   
   // Calendar state
   const [showCalendar, setShowCalendar] = useState(false);
@@ -582,6 +583,13 @@ export default function Dashboard() {
       height: 32,
       borderRadius: 16,
       marginRight: theme.spacing.md,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    avatarText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: '#FFFFFF',
     },
     customerAvatarFallback: {
       width: 32,

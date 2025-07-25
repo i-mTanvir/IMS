@@ -21,6 +21,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { CategoryService, CreateCategoryData } from '@/lib/services/CategoryService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -28,6 +29,7 @@ interface CategoryFormData {
   categoryName: string;
   categoryCode: string;
   description: string;
+  color_code: string;
 }
 
 interface CategoryAddFormProps {
@@ -50,6 +52,7 @@ export default function CategoryAddForm({ visible, onClose, onSubmit, existingCa
     categoryName: '',
     categoryCode: '',
     description: '',
+    color_code: '#3B82F6',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -111,6 +114,7 @@ export default function CategoryAddForm({ visible, onClose, onSubmit, existingCa
           categoryName: '',
           categoryCode: '',
           description: '',
+          color_code: '#3B82F6',
         });
       }
       setErrors({});
@@ -154,15 +158,44 @@ export default function CategoryAddForm({ visible, onClose, onSubmit, existingCa
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canAddCategory) {
       Alert.alert('Permission Denied', 'You do not have permission to add categories.');
       return;
     }
 
-    if (validateForm()) {
-      onSubmit(formData);
-      onClose();
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    try {
+      const categoryData: CreateCategoryData = {
+        name: formData.categoryName.trim(),
+        description: formData.description.trim() || undefined,
+        color_code: formData.color_code,
+      };
+
+      const newCategory = await CategoryService.createCategory(categoryData, user?.id || '');
+
+      Alert.alert(
+        'Success',
+        `Category "${newCategory.name}" has been created successfully!`,
+        [{
+          text: 'OK', onPress: () => {
+            onSubmit({
+              categoryName: newCategory.name,
+              categoryCode: newCategory.id,
+              description: newCategory.description || '',
+              color_code: newCategory.color_code,
+            });
+            handleClose();
+          }
+        }]
+      );
+    } catch (error: any) {
+      console.error('Failed to create category:', error);
+      Alert.alert('Error', error.message || 'Failed to create category');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -171,6 +204,7 @@ export default function CategoryAddForm({ visible, onClose, onSubmit, existingCa
       categoryName: '',
       categoryCode: '',
       description: '',
+      color_code: '#3B82F6',
     });
     setErrors({});
     onClose();
@@ -223,6 +257,23 @@ export default function CategoryAddForm({ visible, onClose, onSubmit, existingCa
             placeholderTextColor={theme.colors.text.muted}
             multiline
           />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Category Color</Text>
+          <View style={styles.colorContainer}>
+            {['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'].map((color) => (
+              <TouchableOpacity
+                key={color}
+                style={[
+                  styles.colorOption,
+                  { backgroundColor: color },
+                  formData.color_code === color && styles.colorOptionSelected
+                ]}
+                onPress={() => setFormData(prev => ({ ...prev, color_code: color }))}
+              />
+            ))}
+          </View>
         </View>
       </View>
     </View>
@@ -430,6 +481,22 @@ export default function CategoryAddForm({ visible, onClose, onSubmit, existingCa
       fontWeight: '700',
       color: '#FFFFFF',
       letterSpacing: 0.5,
+    },
+    colorContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginTop: 8,
+    },
+    colorOption: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      borderWidth: 3,
+      borderColor: 'transparent',
+    },
+    colorOptionSelected: {
+      borderColor: theme.colors.text.primary,
     },
   });
 

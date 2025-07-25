@@ -34,6 +34,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { SupplierService, CreateSupplierData } from '@/lib/services/SupplierService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -78,7 +79,7 @@ const countries = [
 
 export default function SupplierAddForm({ visible, onClose, onSubmit, existingSupplier }: SupplierAddFormProps) {
   const { theme } = useTheme();
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const slideAnim = useRef(new Animated.Value(-screenHeight)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -258,18 +259,42 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
       return;
     }
 
-    if (validateForm()) {
-      setIsLoading(true);
-      try {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-        onSubmit(formData);
-        Alert.alert('Success', 'Supplier added successfully!');
-        onClose();
-      } catch (error) {
-        Alert.alert('Error', 'Failed to add supplier. Please try again.');
-      } finally {
-        setIsLoading(false);
-      }
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    try {
+      const supplierData: CreateSupplierData = {
+        name: formData.supplierName.trim(),
+        supplier_type: 'wholesaler', // Default type, you can add selection
+        contact_person: formData.contactPerson.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        address: formData.address.trim(),
+        city: formData.city.trim(),
+        state: formData.state.trim(),
+        country: formData.country || 'India',
+        postal_code: formData.zipCode.trim(),
+        tax_number: formData.taxId.trim(),
+        payment_terms: parseInt(formData.paymentTerms) || 30,
+        credit_limit: parseFloat(formData.creditLimit) || 0,
+        notes: formData.notes.trim(),
+      };
+
+      const newSupplier = await SupplierService.createSupplier(supplierData, user?.id || '');
+      
+      Alert.alert(
+        'Success',
+        `Supplier "${newSupplier.name}" has been created successfully!`,
+        [{ text: 'OK', onPress: () => {
+          onSubmit(formData);
+          onClose();
+        }}]
+      );
+    } catch (error: any) {
+      console.error('Failed to create supplier:', error);
+      Alert.alert('Error', error.message || 'Failed to create supplier');
+    } finally {
+      setIsLoading(false);
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -42,6 +42,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
 import SupplierAddForm from '@/components/forms/SupplierAddForm';
+import { SupplierService, Supplier as SupplierType } from '@/lib/services/SupplierService';
 
 // Interfaces
 interface Supplier {
@@ -192,26 +193,63 @@ export default function SuppliersPage() {
   const { theme } = useTheme();
   const { user, hasPermission } = useAuth();
   const router = useRouter();
-  const [suppliers] = useState<Supplier[]>(mockSuppliers);
+  const [suppliers, setSuppliers] = useState<SupplierType[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    totalSpent: 0,
+  });
   const [filters, setFilters] = useState<SupplierFilters>({});
   const [refreshing, setRefreshing] = useState(false);
   const [showSupplierForm, setShowSupplierForm] = useState(false);
+
+  // Load suppliers when component mounts
+  useEffect(() => {
+    loadSuppliers();
+    loadStats();
+  }, []);
+
+  const loadSuppliers = async () => {
+    setLoading(true);
+    try {
+      const supplierData = await SupplierService.getAllSuppliers();
+      setSuppliers(supplierData);
+    } catch (error) {
+      console.error('Failed to load suppliers:', error);
+      Alert.alert('Error', 'Failed to load suppliers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      const statsData = await SupplierService.getSuppliersStats();
+      setStats(statsData);
+    } catch (error) {
+      console.error('Failed to load supplier stats:', error);
+    }
+  };
+
+  const handleSupplierAdded = () => {
+    loadSuppliers();
+    loadStats();
+  };
 
   const filteredSuppliers = useMemo(() => {
     return suppliers.filter(supplier => {
       if (filters.search && 
           !supplier.name.toLowerCase().includes(filters.search.toLowerCase()) && 
-          !supplier.companyName.toLowerCase().includes(filters.search.toLowerCase()) &&
-          !supplier.contactPerson.toLowerCase().includes(filters.search.toLowerCase())) {
+          !(supplier.contact_person || '').toLowerCase().includes(filters.search.toLowerCase()) &&
+          !(supplier.email || '').toLowerCase().includes(filters.search.toLowerCase())) {
         return false;
       }
-      if (filters.supplierType && supplier.supplierType !== filters.supplierType) {
+      if (filters.supplierType && supplier.supplier_type.toLowerCase() !== filters.supplierType.toLowerCase()) {
         return false;
       }
-      if (filters.isActive !== undefined && supplier.isActive !== filters.isActive) {
-        return false;
-      }
-      if (filters.rating && supplier.rating < filters.rating) {
+      if (filters.isActive !== undefined && supplier.is_active !== filters.isActive) {
         return false;
       }
       return true;
@@ -220,9 +258,11 @@ export default function SuppliersPage() {
 
   const analytics = useMemo(() => {
     const totalSuppliers = suppliers.length;
-    const activeSuppliers = suppliers.filter(s => s.isActive).length;
-    const averageRating = suppliers.reduce((sum, s) => sum + s.rating, 0) / totalSuppliers;
-    const totalSpent = suppliers.reduce((sum, s) => sum + s.totalSpent, 0);
+    const activeSuppliers = suppliers.filter(s => s.is_active).length;
+    const totalSpent = suppliers.reduce((sum, s) => sum + (s.total_amount || 0), 0);
+    const averageRating = suppliers.length > 0 
+      ? suppliers.reduce((sum, s) => sum + (s.rating || 0), 0) / suppliers.length 
+      : 0;
 
     return {
       totalSuppliers,
@@ -232,9 +272,15 @@ export default function SuppliersPage() {
     };
   }, [suppliers]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    try {
+      await Promise.all([loadSuppliers(), loadStats()]);
+    } catch (error) {
+      console.error('Refresh failed:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const getSupplierTypeColor = (type: string) => {
@@ -254,7 +300,7 @@ export default function SuppliersPage() {
     return theme.colors.status.error;
   };
 
-  const handleAction = (action: string, supplier: Supplier) => {
+  const handleAction = (action: string, supplier: SupplierType) => {
     switch (action) {
       case 'view':
         Alert.alert('View Details', `Viewing details for ${supplier.name}`);
@@ -271,11 +317,11 @@ export default function SuppliersPage() {
           Alert.alert('Permission Denied', 'You do not have permission to manage supplier status.');
           return;
         }
-        const action = supplier.isActive ? 'Deactivate' : 'Activate';
-        Alert.alert(`${action} Supplier`, `${action} ${supplier.name}?`);
+        const actionText = supplier.is_active ? 'Deactivate' : 'Activate';
+        Alert.alert(`${actionText} Supplier`, `${actionText} ${supplier.name}?`);
         break;
       case 'contact':
-        Alert.alert('Contact Supplier', `Contacting ${supplier.contactPerson} at ${supplier.phone}`);
+        Alert.alert('Contact Supplier', `Contacting ${supplier.contact_person || 'N/A'} at ${supplier.phone || 'N/A'}`);
         break;
     }
   };
@@ -302,7 +348,7 @@ export default function SuppliersPage() {
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.primary + '20' }]}>
             <Truck size={24} color={theme.colors.primary} />
           </View>
-          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>{analytics.totalSuppliers}</Text>
+          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>{stats.total}</Text>
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Total Suppliers</Text>
         </View>
         
@@ -310,7 +356,7 @@ export default function SuppliersPage() {
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.success + '20' }]}>
             <UserCheck size={24} color={theme.colors.status.success} />
           </View>
-          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>{analytics.activeSuppliers}</Text>
+          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>{stats.active}</Text>
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Active Suppliers</Text>
         </View>
       </View>
@@ -320,7 +366,9 @@ export default function SuppliersPage() {
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.warning + '20' }]}>
             <Star size={24} color={theme.colors.status.warning} />
           </View>
-          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>{analytics.averageRating.toFixed(1)}</Text>
+          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>
+            {(suppliers.reduce((sum, s) => sum + (s.rating || 0), 0) / (suppliers.length || 1)).toFixed(1)}
+          </Text>
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Average Rating</Text>
         </View>
         
@@ -328,7 +376,9 @@ export default function SuppliersPage() {
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.info + '20' }]}>
             <DollarSign size={24} color={theme.colors.status.info} />
           </View>
-          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>৳{analytics.totalSpent.toLocaleString()}</Text>
+          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>
+            ৳{stats.totalSpent ? stats.totalSpent.toLocaleString() : '0'}
+          </Text>
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Total Spent</Text>
         </View>
       </View>
@@ -348,19 +398,19 @@ export default function SuppliersPage() {
         ))}
       </View>
       <Text style={[styles.ratingText, { color: getRatingColor(rating) }]}>
-        {rating.toFixed(1)}
+        {rating ? rating.toFixed(1) : '0.0'}
       </Text>
     </View>
   );
 
-  const renderSupplierItem = ({ item }: { item: Supplier }) => (
+  const renderSupplierItem = ({ item }: { item: SupplierType }) => (
     <View style={[styles.itemCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
       <View style={styles.itemHeader}>
         <View style={styles.supplierInfo}>
           <View style={styles.supplierAvatar}>
             <View style={[
               styles.avatar,
-              { backgroundColor: item.isActive ? getSupplierTypeColor(item.supplierType) : theme.colors.text.muted }
+              { backgroundColor: item.is_active ? getSupplierTypeColor(item.supplier_type) : theme.colors.text.muted }
             ]}>
               <Text style={[styles.avatarText, { color: theme.colors.text.inverse }]}>
                 {item.name.charAt(0)}
@@ -368,37 +418,37 @@ export default function SuppliersPage() {
             </View>
             <View style={styles.supplierDetails}>
               <Text style={[styles.supplierName, { 
-                color: item.isActive ? theme.colors.text.primary : theme.colors.text.muted 
+                color: item.is_active ? theme.colors.text.primary : theme.colors.text.muted 
               }]}>
                 {item.name}
               </Text>
               <Text style={[styles.companyName, { color: theme.colors.text.secondary }]} numberOfLines={1}>
-                {item.companyName}
+                {item.contact_person || 'N/A'}
               </Text>
               <View style={styles.supplierTypeContainer}>
                 <Text style={[
                   styles.supplierType,
                   { 
-                    color: getSupplierTypeColor(item.supplierType),
-                    backgroundColor: getSupplierTypeColor(item.supplierType) + '20'
+                    color: getSupplierTypeColor(item.supplier_type),
+                    backgroundColor: getSupplierTypeColor(item.supplier_type) + '20'
                   }
                 ]}>
-                  {item.supplierType}
+                  {item.supplier_type}
                 </Text>
               </View>
             </View>
           </View>
           <View style={styles.statusContainer}>
-            {item.isActive ? (
+            {item.is_active ? (
               <CheckCircle size={16} color={theme.colors.status.success} />
             ) : (
               <XCircle size={16} color={theme.colors.status.error} />
             )}
             <Text style={[
               styles.statusText, 
-              { color: item.isActive ? theme.colors.status.success : theme.colors.status.error }
+              { color: item.is_active ? theme.colors.status.success : theme.colors.status.error }
             ]}>
-              {item.isActive ? 'Active' : 'Inactive'}
+              {item.is_active ? 'Active' : 'Inactive'}
             </Text>
           </View>
         </View>
@@ -408,25 +458,25 @@ export default function SuppliersPage() {
         <View style={styles.contactItem}>
           <User size={12} color={theme.colors.text.muted} />
           <Text style={[styles.contactText, { color: theme.colors.text.muted }]}>
-            {item.contactPerson}
+            {item.contact_person || 'N/A'}
           </Text>
         </View>
         <View style={styles.contactItem}>
           <Phone size={12} color={theme.colors.text.muted} />
           <Text style={[styles.contactText, { color: theme.colors.text.muted }]}>
-            {item.phone}
+            {item.phone || 'N/A'}
           </Text>
         </View>
         <View style={styles.contactItem}>
           <Mail size={12} color={theme.colors.text.muted} />
           <Text style={[styles.contactText, { color: theme.colors.text.muted }]} numberOfLines={1}>
-            {item.email}
+            {item.email || 'N/A'}
           </Text>
         </View>
         <View style={styles.contactItem}>
           <MapPin size={12} color={theme.colors.text.muted} />
           <Text style={[styles.contactText, { color: theme.colors.text.muted }]} numberOfLines={1}>
-            {item.address}
+            {item.address || 'N/A'}
           </Text>
         </View>
       </View>
@@ -436,46 +486,34 @@ export default function SuppliersPage() {
           <View style={styles.statItem}>
             <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Total Orders</Text>
             <Text style={[styles.statValue, { color: theme.colors.text.primary }]}>
-              {item.totalOrders}
+              {item.total_orders || 'N/A'}
             </Text>
           </View>
           <View style={styles.statItem}>
             <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Total Spent</Text>
             <Text style={[styles.statValue, { color: theme.colors.primary }]}>
-              ৳{item.totalSpent.toLocaleString()}
+              {item.total_amount ? `৳${item.total_amount.toLocaleString()}` : 'N/A'}
             </Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Avg Order</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Payment Terms</Text>
             <Text style={[styles.statValue, { color: theme.colors.text.primary }]}>
-              ৳{item.averageOrderValue.toLocaleString()}
+              {item.payment_terms} days
             </Text>
           </View>
-        </View>
-        
-        <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Rating:</Text>
-          {renderStarRating(item.rating)}
         </View>
         
         <View style={styles.detailRow}>
           <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Last Order:</Text>
           <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
-            {item.lastOrderDate ? item.lastOrderDate.toLocaleDateString() : 'Never'}
-          </Text>
-        </View>
-        
-        <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Payment Terms:</Text>
-          <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
-            {item.paymentTerms} days
+            {item.last_order_date ? new Date(item.last_order_date).toLocaleDateString() : 'N/A'}
           </Text>
         </View>
         
         <View style={styles.detailRow}>
           <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Credit Limit:</Text>
           <Text style={[styles.detailValue, { color: theme.colors.status.info }]}>
-            ৳{item.creditLimit.toLocaleString()}
+            ৳{(item.credit_limit || 0).toLocaleString()}
           </Text>
         </View>
       </View>
@@ -506,11 +544,11 @@ export default function SuppliersPage() {
             
             <TouchableOpacity
               style={[styles.actionButton, { 
-                backgroundColor: item.isActive ? theme.colors.status.error + '20' : theme.colors.status.success + '20' 
+                backgroundColor: item.is_active ? theme.colors.status.error + '20' : theme.colors.status.success + '20' 
               }]}
               onPress={() => handleAction('activate', item)}
             >
-              {item.isActive ? 
+              {item.is_active ? 
                 <UserX size={16} color={theme.colors.status.error} /> :
                 <UserCheck size={16} color={theme.colors.status.success} />
               }
@@ -595,7 +633,7 @@ export default function SuppliersPage() {
       <SupplierAddForm
         visible={showSupplierForm}
         onClose={() => setShowSupplierForm(false)}
-        onSubmit={handleSupplierSubmit}
+        onSubmit={handleSupplierAdded}
       />
     </SharedLayout>
   );
@@ -846,4 +884,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
   },
-}); 
+});

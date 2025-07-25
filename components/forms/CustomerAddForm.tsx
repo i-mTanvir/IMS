@@ -30,18 +30,21 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { CustomerService, CreateCustomerData } from '@/lib/services/CustomerService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 interface CustomerFormData {
   customerName: string;
+  contactPerson: string;
   email: string;
   phone: string;
   address: string;
-  companyName: string;
-  deliveryAddress: string;
-  profileImage: string | null;
-  sameAsAddress: boolean;
+  city: string;
+  state: string;
+  country: string;
+  postalCode: string;
+  customerType: 'vip' | 'regular' | 'wholesale';
 }
 
 interface CustomerAddFormProps {
@@ -55,25 +58,30 @@ interface CustomerAddFormProps {
 
 export default function CustomerAddForm({ visible, onClose, onSubmit, existingCustomer }: CustomerAddFormProps) {
   const { theme } = useTheme();
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
+  
+  // Debug authentication state
+  console.log('CustomerAddForm - Auth state:', { user, hasPermission: hasPermission('customers', 'add') });
   const slideAnim = useRef(new Animated.Value(-screenHeight)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
   const initialFormState: CustomerFormData = {
     customerName: '',
+    contactPerson: '',
     email: '',
     phone: '',
     address: '',
-    companyName: '',
-    deliveryAddress: '',
-    profileImage: null,
-    sameAsAddress: false,
+    city: '',
+    state: '',
+    country: 'Bangladesh',
+    postalCode: '',
+    customerType: 'regular',
   };
 
   const [formData, setFormData] = useState<CustomerFormData>(initialFormState);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
+  const [isLoading, setIsLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
 
   const canAddCustomer = hasPermission('customers', 'add');
@@ -133,14 +141,16 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
     if (visible) {
       if (existingCustomer) {
         setFormData({
-          customerName: existingCustomer.customerName || '',
+          customerName: existingCustomer.name || '',
+          contactPerson: existingCustomer.contact_person || '',
           email: existingCustomer.email || '',
           phone: existingCustomer.phone || '',
           address: existingCustomer.address || '',
-          companyName: existingCustomer.companyName || '',
-          deliveryAddress: existingCustomer.deliveryAddress || '',
-          profileImage: existingCustomer.profileImage || null,
-          sameAsAddress: existingCustomer.sameAsAddress || false,
+          city: existingCustomer.city || '',
+          state: existingCustomer.state || '',
+          country: existingCustomer.country || 'Bangladesh',
+          postalCode: existingCustomer.postal_code || '',
+          customerType: existingCustomer.customer_type || 'regular',
         });
       } else {
         setFormData(initialFormState);
@@ -150,12 +160,7 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
     }
   }, [visible, existingCustomer]);
 
-  // Update delivery address when sameAsAddress changes
-  useEffect(() => {
-    if (formData.sameAsAddress) {
-      setFormData(prev => ({ ...prev, deliveryAddress: prev.address }));
-    }
-  }, [formData.sameAsAddress, formData.address]);
+  // No longer needed since we removed delivery address functionality
 
   const handlePressOutside = () => {
     // Handle outside press if needed
@@ -168,36 +173,97 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
       newErrors.customerName = 'Customer name is required';
     }
 
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    }
-
     if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
-    }
-
-    if (!formData.address.trim()) {
-      newErrors.address = 'Address is required';
-    }
-
-    if (!formData.deliveryAddress.trim()) {
-      newErrors.deliveryAddress = 'Delivery address is required';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canAddCustomer) {
       Alert.alert('Permission Denied', 'You do not have permission to add customers.');
       return;
     }
 
-    if (validateForm()) {
-      onSubmit(formData);
-      onClose();
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    try {
+      // Debug logging
+      console.log('Form data:', formData);
+      console.log('User ID:', user?.id);
+      console.log('User object:', user);
+
+      const customerData: CreateCustomerData = {
+        name: formData.customerName.trim(),
+        customer_type: formData.customerType,
+        contact_person: formData.contactPerson.trim() || undefined,
+        email: formData.email.trim() || undefined,
+        phone: formData.phone.trim() || undefined,
+        address: formData.address.trim() || undefined,
+        city: formData.city.trim() || undefined,
+        state: formData.state.trim() || undefined,
+        country: formData.country.trim() || 'Bangladesh',
+        postal_code: formData.postalCode.trim() || undefined,
+        notes: undefined,
+      };
+
+      console.log('Customer data to be sent:', customerData);
+
+      // Check if user exists and has an ID
+      if (!user) {
+        console.error('User is not authenticated');
+        Alert.alert('Authentication Error', 'You must be logged in to add customers.');
+        return;
+      }
+
+      const userId = user.id;
+      console.log('Using user ID for creation:', userId);
+      
+      if (!userId) {
+        console.error('User ID is missing');
+        Alert.alert('Authentication Error', 'User ID is missing. Please log in again.');
+        return;
+      }
+      
+      const newCustomer = await CustomerService.createCustomer(customerData, userId);
+
+      Alert.alert(
+        'Success',
+        `Customer "${newCustomer.name}" has been created successfully!`,
+        [{
+          text: 'OK', onPress: () => {
+            onSubmit({
+              customerName: newCustomer.name,
+              contactPerson: newCustomer.contact_person || '',
+              email: newCustomer.email || '',
+              phone: newCustomer.phone || '',
+              address: newCustomer.address || '',
+              city: newCustomer.city || '',
+              state: newCustomer.state || '',
+              country: newCustomer.country || 'Bangladesh',
+              postalCode: newCustomer.postal_code || '',
+              customerType: newCustomer.customer_type,
+            });
+            handleClose();
+          }
+        }]
+      );
+    } catch (error: any) {
+      console.error('Failed to create customer:', error);
+      Alert.alert('Error', error.message || 'Failed to create customer');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleClose = () => {
+    setFormData(initialFormState);
+    setErrors({});
+    setCurrentStep(0);
+    onClose();
   };
 
   const handleImagePicker = () => {
@@ -259,26 +325,6 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
 
   const renderBasicInfoStep = () => (
     <View style={styles.stepContent}>
-      {/* Profile Image */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <Sparkles size={18} color={theme.colors.primary} /> Profile Image
-        </Text>
-        <TouchableOpacity style={styles.imageUploadContainer} onPress={handleImagePicker}>
-          <View style={styles.imageUploadContent}>
-            <View style={styles.imageUploadIcon}>
-              <Camera size={32} color={theme.colors.primary} />
-            </View>
-            <Text style={styles.imageUploadText}>Add customer photo</Text>
-            <Text style={styles.imageUploadSubtext}>PNG, JPG up to 10MB</Text>
-            <View style={styles.uploadButton}>
-              <Upload size={16} color="#FFFFFF" />
-              <Text style={styles.uploadButtonText}>Choose File</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </View>
-
       {/* Basic Information */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>
@@ -298,17 +344,39 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Company Name</Text>
+          <Text style={styles.label}>Contact Person</Text>
           <TextInput
             style={styles.input}
-            value={formData.companyName}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, companyName: text }))}
-            placeholder="Enter company name (optional)"
+            value={formData.contactPerson}
+            onChangeText={(text) => setFormData(prev => ({ ...prev, contactPerson: text }))}
+            placeholder="Enter contact person name (optional)"
             placeholderTextColor={theme.colors.text.muted}
           />
         </View>
 
-
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Customer Type</Text>
+          <View style={styles.customerTypeContainer}>
+            {(['regular', 'vip', 'wholesale'] as const).map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.customerTypeOption,
+                  formData.customerType === type && styles.customerTypeOptionSelected
+                ]}
+                onPress={() => setFormData(prev => ({ ...prev, customerType: type }))}
+              >
+                <Text style={[
+                  styles.customerTypeText,
+                  formData.customerType === type && styles.customerTypeTextSelected
+                ]}>
+                  {type === 'vip' && '👑 '}
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -321,7 +389,7 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
         </Text>
 
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, styles.requiredLabel]}>Phone Number *</Text>
+          <Text style={styles.label}>Phone Number</Text>
           <TextInput
             style={[styles.input, errors.phone && styles.inputError]}
             value={formData.phone}
@@ -358,7 +426,7 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
         </Text>
 
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, styles.requiredLabel]}>Address *</Text>
+          <Text style={styles.label}>Address</Text>
           <TextInput
             style={[styles.input, styles.textArea, errors.address && styles.inputError]}
             value={formData.address}
@@ -371,37 +439,50 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
           {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
         </View>
 
-        <TouchableOpacity
-          style={styles.checkboxContainer}
-          onPress={() => setFormData(prev => ({ ...prev, sameAsAddress: !prev.sameAsAddress }))}
-        >
-          <View style={[
-            styles.checkbox,
-            formData.sameAsAddress && styles.checkboxActive
-          ]}>
-            {formData.sameAsAddress && <Check size={16} color="#FFFFFF" />}
+        <View style={styles.row}>
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>City</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.city}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, city: text }))}
+              placeholder="Enter city"
+              placeholderTextColor={theme.colors.text.muted}
+            />
           </View>
-          <Text style={styles.checkboxLabel}>Same as billing address</Text>
-        </TouchableOpacity>
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>State</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.state}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, state: text }))}
+              placeholder="Enter state"
+              placeholderTextColor={theme.colors.text.muted}
+            />
+          </View>
+        </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, styles.requiredLabel]}>Delivery Address *</Text>
-          <TextInput
-            style={[
-              styles.input,
-              styles.textArea,
-              errors.deliveryAddress && styles.inputError,
-              formData.sameAsAddress && { opacity: 0.6 }
-            ]}
-            value={formData.deliveryAddress}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, deliveryAddress: text }))}
-            placeholder="Enter delivery address"
-            placeholderTextColor={theme.colors.text.muted}
-            multiline
-            numberOfLines={3}
-            editable={!formData.sameAsAddress}
-          />
-          {errors.deliveryAddress && <Text style={styles.errorText}>{errors.deliveryAddress}</Text>}
+        <View style={styles.row}>
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>Country</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.country}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, country: text }))}
+              placeholder="Enter country"
+              placeholderTextColor={theme.colors.text.muted}
+            />
+          </View>
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>Postal Code</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.postalCode}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, postalCode: text }))}
+              placeholder="Enter postal code"
+              placeholderTextColor={theme.colors.text.muted}
+            />
+          </View>
         </View>
       </View>
     </View>
@@ -637,6 +718,40 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
       color: theme.colors.text.primary,
       fontWeight: '500',
     },
+    customerTypeContainer: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 8,
+    },
+    customerTypeOption: {
+      flex: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      borderWidth: 2,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.backgroundTertiary,
+      alignItems: 'center',
+    },
+    customerTypeOptionSelected: {
+      borderColor: theme.colors.primary,
+      backgroundColor: theme.colors.primary + '20',
+    },
+    customerTypeText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.colors.text.primary,
+    },
+    customerTypeTextSelected: {
+      color: theme.colors.primary,
+    },
+    row: {
+      flexDirection: 'row',
+      gap: 16,
+    },
+    flex1: {
+      flex: 1,
+    },
     footer: {
       flexDirection: 'row',
       gap: 16,
@@ -765,8 +880,11 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
                     <TouchableOpacity
                       style={[styles.button, styles.submitButton]}
                       onPress={handleSubmit}
+                      disabled={isLoading}
                     >
-                      <Text style={styles.submitButtonText}>🚀 Add Customer</Text>
+                      <Text style={styles.submitButtonText}>
+                        {isLoading ? '⏳ Saving...' : '🚀 Add Customer'}
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </View>

@@ -1288,95 +1288,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    profileInfo: {
-        flex: 1,
-    },
-    profileName: {
-        fontSize: 18,
-        fontWeight: '600',
-        marginBottom: 4,
-    },
-    profileRole: {
-        fontSize: 14,
-    },
-    inputContainer: {
-        marginBottom: 16,
-    },
-    inputLabel: {
-        fontSize: 14,
-        fontWeight: '500',
-        marginBottom: 8,
-    },
-    textInput: {
-        borderWidth: 1,
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        fontSize: 16,
-    },
-    passwordSection: {
-        marginTop: 16,
-    },
-    settingRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.1)',
-    },
-    settingInfo: {
-        flex: 1,
-        marginRight: 16,
-    },
-    settingTitle: {
-        fontSize: 16,
-        fontWeight: '500',
-        marginBottom: 4,
-    },
-    settingDescription: {
-        fontSize: 12,
-    },
-    saveButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 16,
-        borderRadius: 12,
-        marginTop: 24,
-        gap: 8,
-    },
-    saveButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    themeOptions: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    themeOption: {
-        flex: 1,
-        alignItems: 'center',
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-        gap: 8,
-    },
-    themeOptionText: {
-        fontSize: 12,
-        fontWeight: '500',
-    },
-    colorPalettes: {
-        gap: 12,
-    },
-    colorPalette: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-        gap: 12,
-    },
     // User Management Styles
     sectionSubtitle: {
         fontSize: 14,
@@ -1467,5 +1378,3 @@ const styles = StyleSheet.create({
         gap: 8,
     },
 });
-
-export default SettingsPage;

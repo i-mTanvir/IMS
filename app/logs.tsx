@@ -40,6 +40,8 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
+import TopNavBar from '@/components/TopNavBar';
+import BottomNavBar from '@/components/BottomNavBar';
 
 // Types for mobile activity logs
 interface MobileActivityLog {
@@ -253,28 +255,6 @@ export default function LogsPage() {
     const [selectedLog, setSelectedLog] = useState<MobileActivityLog | null>(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
 
-    // Check if user has permission to view logs
-    if (!hasPermission('activityLogs', 'view') && user?.role !== 'super_admin') {
-        return (
-            <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-                <TopNavBar
-                    title="Access Denied"
-                    showBackButton={true}
-                />
-                <View style={styles.accessDeniedContainer}>
-                    <Shield size={64} color={theme.colors.status.error} />
-                    <Text style={[styles.accessDeniedTitle, { color: theme.colors.text.primary }]}>
-                        Access Denied
-                    </Text>
-                    <Text style={[styles.accessDeniedText, { color: theme.colors.text.secondary }]}>
-                        Only Super Administrators and Admins can view activity logs.
-                    </Text>
-                </View>
-                <BottomNavBar activeTab="logs" />
-            </SafeAreaView>
-        );
-    }
-
     // Filtered logs
     const filteredLogs = useMemo(() => {
         return logs.filter(log => {
@@ -327,6 +307,28 @@ export default function LogsPage() {
             mostActiveUser: mostActiveUserName,
         };
     }, [logs]);
+
+    // Check if user has permission to view logs
+    if (!hasPermission('activityLogs', 'view') && user?.role !== 'super_admin') {
+        return (
+            <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+                <TopNavBar
+                    title="Access Denied"
+                    showBackButton={true}
+                />
+                <View style={styles.accessDeniedContainer}>
+                    <Shield size={64} color={theme.colors.status.error} />
+                    <Text style={[styles.accessDeniedTitle, { color: theme.colors.text.primary }]}>
+                        Access Denied
+                    </Text>
+                    <Text style={[styles.accessDeniedText, { color: theme.colors.text.secondary }]}>
+                        Only Super Administrators and Admins can view activity logs.
+                    </Text>
+                </View>
+                <BottomNavBar activeTab="logs" />
+            </SafeAreaView>
+        );
+    }
 
     // Utility functions
     const getSeverityColor = (severity: string) => {

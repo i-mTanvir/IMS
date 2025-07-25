@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -42,34 +42,47 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
 import CustomerAddForm from '@/components/forms/CustomerAddForm';
+import { CustomerService, Customer as CustomerType } from '@/lib/services/CustomerService';
 
-// Interfaces
+// Interfaces - Updated to match actual database schema
 interface Customer {
   id: string;
   name: string;
-  email: string;
-  phone: string;
-  address: string;
-  customerType: 'VIP' | 'Regular' | 'Wholesale';
-  creditLimit: number;
-  paymentTerms: number;
-  registrationDate: Date;
-  totalPurchases: number;
-  totalSpent: number;
-  averageOrderValue: number;
-  lastPurchaseDate?: Date;
-  purchaseFrequency: number;
-  isActive: boolean;
-  isRedListed: boolean;
-  redListDate?: Date;
-  redListReason?: string;
-  paymentStatus: 'Good' | 'Warning' | 'Overdue' | 'Red Listed';
-  outstandingAmount: number;
-  daysPastDue: number;
-  communicationPreferences: string[];
-  notes: string;
-  createdBy: string;
-  lastUpdated: Date;
+  customer_type: 'vip' | 'regular' | 'wholesale';
+  contact_person?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postal_code?: string;
+  tax_number?: string;
+  payment_status: 'good' | 'warning' | 'overdue' | 'red_listed';
+  credit_limit: number;
+  current_balance: number;
+  total_sales: number;
+  total_orders: number;
+  last_order_date?: string;
+  last_payment_date?: string;
+  is_red_listed: boolean;
+  red_list_reason?: string;
+  red_listed_date?: string;
+  red_listed_by?: string;
+  is_active: boolean;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+  updated_by?: string;
+  total_purchases: number;
+  total_spent: number;
+  average_order_value: number;
+  purchase_frequency: number;
+  outstanding_amount: number;
+  days_past_due: number;
+  last_purchase_date?: string;
+  payment_terms: number;
 }
 
 interface PurchaseHistory {
@@ -101,8 +114,8 @@ interface PurchaseHistory {
 
 interface CustomerFilters {
   search?: string;
-  customerType?: 'VIP' | 'Regular' | 'Wholesale';
-  paymentStatus?: 'Good' | 'Warning' | 'Overdue' | 'Red Listed';
+  customerType?: 'vip' | 'regular' | 'wholesale';
+  paymentStatus?: 'good' | 'warning' | 'overdue' | 'red_listed';
   isRedListed?: boolean;
   isActive?: boolean;
 }
@@ -301,30 +314,50 @@ export default function CustomersPage() {
   const { user, hasPermission } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'customers' | 'purchase-history' | 'red-list' | 'top-customers'>('customers');
-  const [customers] = useState<Customer[]>(mockCustomers);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [purchaseHistory] = useState<PurchaseHistory[]>(mockPurchaseHistory);
   const [filters, setFilters] = useState<CustomerFilters>({});
   const [refreshing, setRefreshing] = useState(false);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load customers from database
+  const loadCustomers = async () => {
+    try {
+      setLoading(true);
+      const data = await CustomerService.getAllCustomers();
+      setCustomers(data);
+    } catch (error) {
+      console.error('Failed to load customers:', error);
+      Alert.alert('Error', 'Failed to load customers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load customers on component mount
+  useEffect(() => {
+    loadCustomers();
+  }, []);
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(customer => {
       if (filters.search && 
           !customer.name.toLowerCase().includes(filters.search.toLowerCase()) && 
-          !customer.email.toLowerCase().includes(filters.search.toLowerCase()) &&
-          !customer.phone.includes(filters.search)) {
+          !(customer.email?.toLowerCase().includes(filters.search.toLowerCase())) &&
+          !(customer.phone?.includes(filters.search))) {
         return false;
       }
-      if (filters.customerType && customer.customerType !== filters.customerType) {
+      if (filters.customerType && customer.customer_type !== filters.customerType) {
         return false;
       }
-      if (filters.paymentStatus && customer.paymentStatus !== filters.paymentStatus) {
+      if (filters.paymentStatus && customer.payment_status !== filters.paymentStatus) {
         return false;
       }
-      if (filters.isRedListed !== undefined && customer.isRedListed !== filters.isRedListed) {
+      if (filters.isRedListed !== undefined && customer.is_red_listed !== filters.isRedListed) {
         return false;
       }
-      if (filters.isActive !== undefined && customer.isActive !== filters.isActive) {
+      if (filters.isActive !== undefined && customer.is_active !== filters.isActive) {
         return false;
       }
       return true;
@@ -333,52 +366,53 @@ export default function CustomersPage() {
 
   const analytics = useMemo(() => {
     const totalCustomers = customers.length;
-    const activeCustomers = customers.filter(c => c.isActive).length;
-    const vipCustomers = customers.filter(c => c.customerType === 'VIP').length;
-    const redListedCustomers = customers.filter(c => c.isRedListed).length;
-    const averageCustomerValue = customers.reduce((sum, c) => sum + c.totalSpent, 0) / totalCustomers;
-    const topCustomersByRevenue = [...customers].sort((a, b) => b.totalSpent - a.totalSpent).slice(0, 5);
+    const activeCustomers = customers.filter(c => c.is_active).length;
+    const vipCustomers = customers.filter(c => c.customer_type === 'vip').length;
+    const redListedCustomers = customers.filter(c => c.is_red_listed).length;
+    const averageCreditLimit = customers.reduce((sum, c) => sum + c.credit_limit, 0) / (totalCustomers || 1);
+    const topCustomersByCredit = [...customers].sort((a, b) => b.credit_limit - a.credit_limit).slice(0, 5);
 
     return {
       totalCustomers,
       activeCustomers,
       vipCustomers,
       redListedCustomers,
-      averageCustomerValue,
-      topCustomersByRevenue,
+      averageCustomerValue: averageCreditLimit,
+      topCustomersByRevenue: topCustomersByCredit,
     };
   }, [customers]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    await loadCustomers();
+    setRefreshing(false);
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Good': return theme.colors.status.success;
-      case 'Warning': return theme.colors.status.warning;
-      case 'Overdue': return theme.colors.status.error;
-      case 'Red Listed': return theme.colors.status.error;
+      case 'good': return theme.colors.status.success;
+      case 'warning': return theme.colors.status.warning;
+      case 'overdue': return theme.colors.status.error;
+      case 'red_listed': return theme.colors.status.error;
       default: return theme.colors.text.secondary;
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Good': return CheckCircle;
-      case 'Warning': return AlertTriangle;
-      case 'Overdue': return Clock;
-      case 'Red Listed': return XCircle;
+      case 'good': return CheckCircle;
+      case 'warning': return AlertTriangle;
+      case 'overdue': return Clock;
+      case 'red_listed': return XCircle;
       default: return Clock;
     }
   };
 
   const getCustomerTypeColor = (type: string) => {
     switch (type) {
-      case 'VIP': return theme.colors.status.warning;
-      case 'Wholesale': return theme.colors.primary;
-      case 'Regular': return theme.colors.status.info;
+      case 'vip': return theme.colors.status.warning;
+      case 'wholesale': return theme.colors.primary;
+      case 'regular': return theme.colors.status.info;
       default: return theme.colors.text.secondary;
     }
   };
@@ -417,11 +451,11 @@ export default function CustomersPage() {
     setShowCustomerForm(true);
   };
 
-  const handleCustomerSubmit = (data: any) => {
+  const handleCustomerSubmit = async (data: any) => {
     console.log('Customer form submitted:', data);
-    // Here you would normally add the customer to your database
-    Alert.alert('Success', 'Customer added successfully!');
     setShowCustomerForm(false);
+    // Reload customers to show the new one
+    await loadCustomers();
   };
 
   const renderKPICards = () => (
@@ -521,7 +555,7 @@ export default function CustomersPage() {
   );
 
   const renderCustomerItem = ({ item }: { item: Customer }) => {
-    const StatusIcon = getStatusIcon(item.paymentStatus);
+    const StatusIcon = getStatusIcon(item.payment_status);
     
     return (
       <View style={[styles.itemCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -529,7 +563,7 @@ export default function CustomersPage() {
           <View style={styles.customerAvatar}>
             <View style={[
               styles.avatar,
-              { backgroundColor: item.isRedListed ? theme.colors.status.error : getCustomerTypeColor(item.customerType) }
+              { backgroundColor: item.is_red_listed ? theme.colors.status.error : getCustomerTypeColor(item.customer_type) }
             ]}>
               <Text style={[styles.avatarText, { color: theme.colors.text.inverse }]}>
                 {item.name.charAt(0)}
@@ -538,10 +572,10 @@ export default function CustomersPage() {
             <View style={styles.customerInfo}>
               <Text style={[
                 styles.customerName, 
-                { color: item.isRedListed ? theme.colors.status.error : theme.colors.text.primary }
+                { color: item.is_red_listed ? theme.colors.status.error : theme.colors.text.primary }
               ]}>
                 {item.name}
-                {item.isRedListed && (
+                {item.is_red_listed && (
                   <Text style={[styles.redListBadge, { color: theme.colors.status.error }]}>
                     {' '}[RED LIST]
                   </Text>
@@ -551,77 +585,81 @@ export default function CustomersPage() {
                 <Text style={[
                   styles.customerType,
                   { 
-                    color: getCustomerTypeColor(item.customerType),
-                    backgroundColor: getCustomerTypeColor(item.customerType) + '20'
+                    color: getCustomerTypeColor(item.customer_type),
+                    backgroundColor: getCustomerTypeColor(item.customer_type) + '20'
                   }
                 ]}>
-                  {item.customerType === 'VIP' && '👑 '}
-                  {item.customerType}
+                  {item.customer_type === 'vip' && '👑 '}
+                  {item.customer_type.charAt(0).toUpperCase() + item.customer_type.slice(1)}
                 </Text>
               </View>
             </View>
           </View>
           <View style={styles.statusContainer}>
-            <StatusIcon size={12} color={getStatusColor(item.paymentStatus)} />
-            <Text style={[styles.statusText, { color: getStatusColor(item.paymentStatus) }]}>
-              {item.paymentStatus}
+            <StatusIcon size={12} color={getStatusColor(item.payment_status)} />
+            <Text style={[styles.statusText, { color: getStatusColor(item.payment_status) }]}>
+              {item.payment_status}
             </Text>
           </View>
         </View>
 
         <View style={styles.contactInfo}>
-          <View style={styles.contactItem}>
-            <Phone size={12} color={theme.colors.text.muted} />
-            <Text style={[styles.contactText, { color: theme.colors.text.muted }]}>
-              {item.phone}
-            </Text>
-          </View>
-          <View style={styles.contactItem}>
-            <Mail size={12} color={theme.colors.text.muted} />
-            <Text style={[styles.contactText, { color: theme.colors.text.muted }]} numberOfLines={1}>
-              {item.email}
-            </Text>
-          </View>
+          {item.phone && (
+            <View style={styles.contactItem}>
+              <Phone size={12} color={theme.colors.text.muted} />
+              <Text style={[styles.contactText, { color: theme.colors.text.muted }]}>
+                {item.phone}
+              </Text>
+            </View>
+          )}
+          {item.email && (
+            <View style={styles.contactItem}>
+              <Mail size={12} color={theme.colors.text.muted} />
+              <Text style={[styles.contactText, { color: theme.colors.text.muted }]} numberOfLines={1}>
+                {item.email}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.itemDetails}>
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Total Spent</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Credit Limit</Text>
               <Text style={[styles.statValue, { color: theme.colors.primary }]}>
-                ৳{item.totalSpent.toLocaleString()}
+                ৳{item.credit_limit.toLocaleString()}
               </Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Orders</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Payment Terms</Text>
               <Text style={[styles.statValue, { color: theme.colors.text.primary }]}>
-                {item.totalPurchases}
+                {item.payment_terms} days
               </Text>
             </View>
             <View style={styles.statItem}>
               <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Outstanding</Text>
               <Text style={[
                 styles.statValue, 
-                { color: item.outstandingAmount > 0 ? theme.colors.status.error : theme.colors.status.success }
+                { color: item.outstanding_amount > 0 ? theme.colors.status.error : theme.colors.status.success }
               ]}>
-                ৳{item.outstandingAmount.toLocaleString()}
+                ৳{item.outstanding_amount.toLocaleString()}
               </Text>
             </View>
           </View>
           
-          {item.daysPastDue > 0 && (
+          {item.days_past_due > 0 && (
             <View style={styles.overdueContainer}>
               <AlertTriangle size={12} color={theme.colors.status.error} />
               <Text style={[styles.overdueText, { color: theme.colors.status.error }]}>
-                {item.daysPastDue} days overdue
+                {item.days_past_due} days overdue
               </Text>
             </View>
           )}
           
           <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Last Purchase:</Text>
+            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Created:</Text>
             <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
-              {item.lastPurchaseDate ? item.lastPurchaseDate.toLocaleDateString() : 'Never'}
+              {new Date(item.created_at).toLocaleDateString()}
             </Text>
           </View>
         </View>
@@ -645,11 +683,11 @@ export default function CustomersPage() {
               
               <TouchableOpacity
                 style={[styles.actionButton, { 
-                  backgroundColor: item.isRedListed ? theme.colors.status.success + '20' : theme.colors.status.error + '20' 
+                  backgroundColor: item.is_red_listed ? theme.colors.status.success + '20' : theme.colors.status.error + '20' 
                 }]}
                 onPress={() => handleAction('redlist', item)}
               >
-                {item.isRedListed ? 
+                {item.is_red_listed ? 
                   <UserCheck size={16} color={theme.colors.status.success} /> :
                   <UserX size={16} color={theme.colors.status.error} />
                 }
@@ -657,7 +695,7 @@ export default function CustomersPage() {
             </>
           )}
           
-          {item.outstandingAmount > 0 && (
+          {item.outstanding_amount > 0 && (
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: theme.colors.primary + '20' }]}
               onPress={() => handleAction('reminder', item)}
@@ -767,7 +805,7 @@ export default function CustomersPage() {
       case 'purchase-history':
         return purchaseHistory;
       case 'red-list':
-        return customers.filter(c => c.isRedListed);
+        return customers.filter(c => c.is_red_listed);
       case 'top-customers':
         return analytics.topCustomersByRevenue;
       default:
