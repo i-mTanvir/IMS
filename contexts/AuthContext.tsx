@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/lib/supabase';
 
 // User permissions interface
 interface UserPermissions {
@@ -65,11 +66,14 @@ interface UserPermissions {
 
 // User session interface
 interface UserSession {
+  id: string;
   email: string;
   name: string;
   role: string;
-  permissions: UserPermissions;
+  permissions: Record<string, any>;
+  assignedLocations?: string[];
   loginTime: string;
+  supabaseUser?: any;
 }
 
 // Auth context interface
@@ -78,8 +82,10 @@ interface AuthContextType {
   isLoading: boolean;
   login: (userSession: UserSession) => Promise<void>;
   logout: () => Promise<void>;
-  hasPermission: (module: string, action?: string) => boolean;
+  hasPermission: (module: string, action?: string, locationId?: string) => boolean;
   isRole: (role: string) => boolean;
+  canAccessLocation: (locationId: string) => boolean;
+  getAccessibleLocations: () => string[];
 }
 
 // Create context
@@ -122,6 +128,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
+      // Sign out from Supabase
+      await supabase.auth.signOut();
+      
+      // Clear local session
       await AsyncStorage.removeItem('userSession');
       setUser(null);
     } catch (error) {
@@ -129,24 +139,84 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const hasPermission = useCallback((module: string, action: string = 'view'): boolean => {
+  const hasPermission = useCallback((module: string, action: string = 'view', locationId?: string): boolean => {
     if (!user || !user.permissions) return false;
 
-    const modulePermissions = user.permissions[module as keyof UserPermissions];
+    // Super admin has all permissions
+    if (user.role === 'super_admin') return true;
+
+    const modulePermissions = user.permissions[module.toLowerCase()];
+    
+    if (!modulePermissions) return false;
+    
+    // Map action names to permission fields
+    const actionMap: Record<string, string> = {
+      'view': 'view',
+      'read': 'view',
+      'add': 'add',
+      'create': 'add',
+      'edit': 'edit',
+      'update': 'edit',
+      'delete': 'delete',
+      'remove': 'delete',
+      'approve': 'approve'
+    };
+    
+    const permissionField = actionMap[action.toLowerCase()] || action.toLowerCase();
+    
+    let hasModulePermission = false;
     
     if (typeof modulePermissions === 'boolean') {
-      return modulePermissions;
+      hasModulePermission = modulePermissions;
+    } else if (typeof modulePermissions === 'object' && modulePermissions !== null) {
+      hasModulePermission = modulePermissions[permissionField] ?? false;
     }
     
-    if (typeof modulePermissions === 'object' && modulePermissions !== null) {
-      return modulePermissions[action as keyof typeof modulePermissions] ?? false;
+    if (!hasModulePermission) return false;
+    
+    // Check location restrictions
+    if (locationId && user.role !== 'super_admin') {
+      // For location-specific permissions, check if user has access to this location
+      if (user.assignedLocations && user.assignedLocations.length > 0) {
+        return user.assignedLocations.includes(locationId);
+      }
+      
+      // If user has location restrictions in permissions
+      if (modulePermissions.locationRestrictions && modulePermissions.locationRestrictions.length > 0) {
+        return modulePermissions.locationRestrictions.includes(locationId);
+      }
     }
     
-    return false;
+    return true;
   }, [user]);
 
   const isRole = useCallback((role: string): boolean => {
     return user?.role === role;
+  }, [user]);
+
+  const canAccessLocation = useCallback((locationId: string): boolean => {
+    if (!user) return false;
+    
+    // Super admin can access all locations
+    if (user.role === 'super_admin') return true;
+    
+    // Check assigned locations
+    if (user.assignedLocations && user.assignedLocations.length > 0) {
+      return user.assignedLocations.includes(locationId);
+    }
+    
+    // If no location restrictions, allow access (for backward compatibility)
+    return true;
+  }, [user]);
+
+  const getAccessibleLocations = useCallback((): string[] => {
+    if (!user) return [];
+    
+    // Super admin can access all locations
+    if (user.role === 'super_admin') return [];
+    
+    // Return assigned locations
+    return user.assignedLocations || [];
   }, [user]);
 
   // Memoize the context value to prevent unnecessary re-renders
@@ -157,7 +227,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     hasPermission,
     isRole,
-  }), [user, isLoading, login, logout, hasPermission, isRole]);
+    canAccessLocation,
+    getAccessibleLocations,
+  }), [user, isLoading, login, logout, hasPermission, isRole, canAccessLocation, getAccessibleLocations]);
 
   return (
     <AuthContext.Provider value={value}>

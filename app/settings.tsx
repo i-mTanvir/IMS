@@ -12,6 +12,7 @@ import {
     Switch,
     Image,
     Modal,
+    ActivityIndicator,
 } from 'react-native';
 import {
     Settings,
@@ -51,23 +52,12 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
-import RoleAddForm from '@/components/forms/RoleAddForm';
+import AddUserForm from '@/components/forms/AddUserForm';
+import { UserService, UserProfile } from '@/lib/services/UserService';
+import { LocationService, Location } from '@/lib/services/LocationService';
 
-// Types
-interface RoleManagement {
-    id: string;
-    userId: string;
-    fullName: string;
-    email: string;
-    phone: string;
-    role: 'super_admin' | 'admin' | 'sales_manager' | 'investor';
-    profilePicture?: string;
-    isActive: boolean;
-    permissions: string[];
-    createdAt: Date;
-    createdBy: string;
-    lastUpdated: Date;
-}
+// Types - using UserProfile from service
+type RoleManagement = UserProfile;
 
 interface AccountSettings {
     id: string;
@@ -103,49 +93,11 @@ const ROLE_LABELS = {
     investor: 'Investor',
 };
 
-// Mock data
-const mockRoleManagement: RoleManagement[] = [
-    {
-        id: '1',
-        userId: '1',
-        fullName: 'Super Administrator',
-        email: 'admin@gmail.com',
-        phone: '+880-1234-567890',
-        role: 'super_admin',
-        profilePicture: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1',
-        isActive: true,
-        permissions: ['all'],
-        createdAt: new Date('2024-01-01'),
-        createdBy: 'system',
-        lastUpdated: new Date(),
-    },
-    {
-        id: '2',
-        userId: '2',
-        fullName: 'System Admin',
-        email: 'admin@serranotex.com',
-        phone: '+880-1234-567891',
-        role: 'admin',
-        isActive: true,
-        permissions: ['manage_products', 'manage_sales', 'view_reports'],
-        createdAt: new Date('2024-01-15'),
-        createdBy: 'Super Administrator',
-        lastUpdated: new Date(),
-    },
-    {
-        id: '3',
-        userId: '3',
-        fullName: 'Sales Manager',
-        email: 'sales@serranotex.com',
-        phone: '+880-1234-567892',
-        role: 'sales_manager',
-        isActive: true,
-        permissions: ['view_reports'],
-        createdAt: new Date('2024-02-01'),
-        createdBy: 'Super Administrator',
-        lastUpdated: new Date(),
-    },
-];
+// No mock data - will load from database
+
+interface LocationMap {
+  [key: string]: Location;
+}
 
 const COLOR_PALETTES = [
     {
@@ -195,11 +147,13 @@ export default function SettingsPage() {
     const { user, hasPermission } = useAuth();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'role-management' | 'account' | 'appearance' | 'system'>('account');
-    const [roles, setRoles] = useState<RoleManagement[]>(mockRoleManagement);
-    const [showAddRoleModal, setShowAddRoleModal] = useState(false);
-    const [editingRole, setEditingRole] = useState<RoleManagement | null>(null);
+    const [users, setUsers] = useState<UserProfile[]>([]);
+    const [locations, setLocations] = useState<LocationMap>({});
+    const [showAddUserModal, setShowAddUserModal] = useState(false);
+    const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
     const [showPasswordFields, setShowPasswordFields] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [loading, setLoading] = useState(false);
 
     const [accountSettings, setAccountSettings] = useState<AccountSettings>({
         id: '1',
@@ -228,9 +182,55 @@ export default function SettingsPage() {
         sidebarCollapsed: false,
     });
 
-    const onRefresh = () => {
+    // Load data when component mounts or tab changes
+    React.useEffect(() => {
+        if (activeTab === 'role-management' && user?.role === 'super_admin') {
+            loadUsers();
+            loadLocations();
+        }
+    }, [activeTab, user?.role]);
+
+    const loadUsers = async () => {
+        if (user?.role !== 'super_admin') return;
+        
+        setLoading(true);
+        try {
+            console.log('🔄 Loading users...');
+            const userData = await UserService.getAllUsers();
+            console.log('✅ Users loaded:', userData.length);
+            setUsers(userData);
+        } catch (error: any) {
+            console.error('❌ Failed to load users:', error);
+            Alert.alert('Error', `Failed to load users: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loadLocations = async () => {
+        try {
+            const locationData = await LocationService.getAllLocations();
+            const locationMap: LocationMap = {};
+            locationData.forEach(location => {
+                locationMap[location.id] = location;
+            });
+            setLocations(locationMap);
+        } catch (error) {
+            console.error('Failed to load locations:', error);
+        }
+    };
+
+    const onRefresh = async () => {
         setRefreshing(true);
-        setTimeout(() => setRefreshing(false), 1000);
+        try {
+            if (activeTab === 'role-management' && user?.role === 'super_admin') {
+                await Promise.all([loadUsers(), loadLocations()]);
+            }
+        } catch (error) {
+            console.error('Refresh failed:', error);
+        } finally {
+            setRefreshing(false);
+        }
     };
 
     const handleSaveAccount = () => {
@@ -241,44 +241,83 @@ export default function SettingsPage() {
         Alert.alert('Success', 'Appearance settings saved successfully!');
     };
 
-    const handleAddUser = (userData: any) => {
-        // Add the new user to the roles list
-        const newUser: RoleManagement = {
-            id: (roles.length + 1).toString(),
-            userId: (roles.length + 1).toString(),
-            fullName: userData.userName,
-            email: userData.email,
-            phone: userData.mobileNumber,
-            role: userData.role.toLowerCase().replace(' ', '_') as 'super_admin' | 'admin' | 'sales_manager' | 'investor',
-            isActive: true,
-            permissions: userData.role === 'Admin' ? ['manage_products', 'manage_sales', 'view_reports'] : 
-                        userData.role === 'Sales Manager' ? ['view_reports'] : [],
-            createdAt: new Date(),
-            createdBy: user?.name || 'Current User',
-            lastUpdated: new Date(),
-        };
-        
-        setRoles(prev => [...prev, newUser]);
-        Alert.alert('Success', `User ${userData.userName} has been added successfully!`);
+    const handleUserAdded = (newUser: UserProfile) => {
+        setUsers(prev => [newUser, ...prev]);
     };
 
-    const handleEditRole = (role: RoleManagement) => {
-        Alert.alert('Edit Role', `Edit ${role.fullName}`);
+    const handleEditUser = (userProfile: UserProfile) => {
+        setEditingUser(userProfile);
+        // TODO: Implement edit user modal
+        Alert.alert('Edit User', `Edit functionality for ${userProfile.full_name} will be implemented`);
     };
 
-    const handleDeleteRole = (role: RoleManagement) => {
+    const handleDeleteUser = (userProfile: UserProfile) => {
         Alert.alert(
             'Delete User',
-            `Are you sure you want to delete ${role.fullName}?`,
+            `Are you sure you want to delete ${userProfile.full_name}?\n\nThis action cannot be undone.`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Delete', style: 'destructive', onPress: () => {
-                        setRoles(prev => prev.filter(r => r.id !== role.id));
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await UserService.deleteUser(userProfile.id);
+                            setUsers(prev => prev.filter(u => u.id !== userProfile.id));
+                            Alert.alert('Success', 'User deleted successfully');
+                        } catch (error: any) {
+                            console.error('Failed to delete user:', error);
+                            Alert.alert('Error', error.message || 'Failed to delete user');
+                        }
                     }
                 },
             ]
         );
+    };
+
+    const handleToggleUserStatus = async (userProfile: UserProfile) => {
+        try {
+            const updatedUser = await UserService.toggleUserStatus(
+                userProfile.id,
+                !userProfile.is_active,
+                user?.id || ''
+            );
+            setUsers(prev => prev.map(u => u.id === userProfile.id ? updatedUser : u));
+            Alert.alert(
+                'Success',
+                `User ${updatedUser.is_active ? 'activated' : 'deactivated'} successfully`
+            );
+        } catch (error: any) {
+            console.error('Failed to toggle user status:', error);
+            Alert.alert('Error', error.message || 'Failed to update user status');
+        }
+    };
+
+    const getLocationNames = (locationIds: string[]): string => {
+        if (!locationIds || locationIds.length === 0) return 'No locations assigned';
+        
+        const names = locationIds
+            .map(id => locations[id]?.name)
+            .filter(Boolean);
+        
+        if (names.length === 0) return 'Unknown locations';
+        if (names.length === 1) return names[0];
+        if (names.length <= 3) return names.join(', ');
+        return `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
+    };
+
+    const getUserInitials = (fullName: string): string => {
+        if (!fullName) return 'U';
+        
+        const nameParts = fullName.trim().split(' ').filter(Boolean);
+        if (nameParts.length === 0) return 'U';
+        if (nameParts.length === 1) return nameParts[0].charAt(0).toUpperCase();
+        
+        // First letter of first name + first letter of last name
+        const firstInitial = nameParts[0].charAt(0).toUpperCase();
+        const lastInitial = nameParts[nameParts.length - 1].charAt(0).toUpperCase();
+        
+        return firstInitial + lastInitial;
     };
 
     const renderTabs = () => (
@@ -327,7 +366,7 @@ export default function SettingsPage() {
     );
 
     const renderRoleManagement = () => {
-        if (!hasPermission('canManageUsers') && user?.role !== 'super_admin') {
+        if (user?.role !== 'super_admin') {
             return (
                 <View style={styles.accessDeniedContainer}>
                     <Shield size={64} color={theme.colors.status.error} />
@@ -335,7 +374,7 @@ export default function SettingsPage() {
                         Access Denied
                     </Text>
                     <Text style={[styles.accessDeniedText, { color: theme.colors.text.secondary }]}>
-                        Only Super Administrators can manage user roles.
+                        Only Super Administrators can manage users.
                     </Text>
                 </View>
             );
@@ -344,82 +383,126 @@ export default function SettingsPage() {
         return (
             <View>
                 <View style={styles.sectionHeader}>
-                    <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
-                        Role Management
-                    </Text>
+                    <View>
+                        <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+                            User Management
+                        </Text>
+                        <Text style={[styles.sectionSubtitle, { color: theme.colors.text.secondary }]}>
+                            Manage system users and their permissions
+                        </Text>
+                    </View>
                     <TouchableOpacity
                         style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-                        onPress={() => setShowAddRoleModal(true)}
+                        onPress={() => setShowAddUserModal(true)}
+                        disabled={loading}
                     >
                         <Plus size={20} color={theme.colors.text.inverse} />
                     </TouchableOpacity>
                 </View>
 
-                <View style={styles.rolesContainer}>
-                    {roles.map((role) => (
-                        <View key={role.id} style={[styles.roleCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                            <View style={styles.roleHeader}>
-                                <View style={styles.roleInfo}>
-                                    <View style={styles.avatarContainer}>
-                                        {role.profilePicture ? (
-                                            <Image source={{ uri: role.profilePicture }} style={styles.avatar} />
-                                        ) : (
-                                            <View style={[styles.avatarFallback, { backgroundColor: theme.colors.primary }]}>
-                                                <Text style={[styles.avatarText, { color: theme.colors.text.inverse }]}>
-                                                    {role.fullName.charAt(0)}
+                {loading ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color={theme.colors.primary} />
+                        <Text style={[styles.loadingText, { color: theme.colors.text.secondary }]}>
+                            Loading users...
+                        </Text>
+                    </View>
+                ) : (
+                    <View style={styles.usersContainer}>
+                        {users.length === 0 ? (
+                            <View style={styles.emptyContainer}>
+                                <Users size={48} color={theme.colors.text.muted} />
+                                <Text style={[styles.emptyTitle, { color: theme.colors.text.primary }]}>
+                                    No Users Found
+                                </Text>
+                                <Text style={[styles.emptyText, { color: theme.colors.text.secondary }]}>
+                                    Add your first user to get started
+                                </Text>
+                            </View>
+                        ) : (
+                            users.map((userProfile) => (
+                                <View key={userProfile.id} style={[styles.userCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                                    <View style={styles.userHeader}>
+                                        <View style={styles.userInfo}>
+                                            <View style={styles.avatarContainer}>
+                                                <View style={[styles.avatarFallback, { backgroundColor: theme.colors.primary }]}>
+                                                    <Text style={[styles.avatarText, { color: theme.colors.text.inverse }]}>
+                                                        {getUserInitials(userProfile.full_name)}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                            <View style={styles.userDetails}>
+                                                <Text style={[styles.userName, { color: theme.colors.text.primary }]}>
+                                                    {userProfile.full_name}
+                                                </Text>
+                                                <Text style={[styles.userEmail, { color: theme.colors.text.secondary }]}>
+                                                    {userProfile.email}
+                                                </Text>
+                                                {userProfile.phone && (
+                                                    <Text style={[styles.userPhone, { color: theme.colors.text.muted }]}>
+                                                        {userProfile.phone}
+                                                    </Text>
+                                                )}
+                                                {userProfile.assigned_locations.length > 0 && (
+                                                    <Text style={[styles.userLocations, { color: theme.colors.text.muted }]}>
+                                                        📍 {getLocationNames(userProfile.assigned_locations)}
+                                                    </Text>
+                                                )}
+                                            </View>
+                                        </View>
+                                        <View style={styles.userBadges}>
+                                            <View style={[styles.roleBadge, { backgroundColor: theme.colors.primary + '20' }]}>
+                                                <Text style={[styles.roleBadgeText, { color: theme.colors.primary }]}>
+                                                    {ROLE_LABELS[userProfile.role]}
                                                 </Text>
                                             </View>
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.statusBadge,
+                                                    { backgroundColor: userProfile.is_active ? theme.colors.status.success + '20' : theme.colors.status.error + '20' }
+                                                ]}
+                                                onPress={() => handleToggleUserStatus(userProfile)}
+                                            >
+                                                <Text style={[
+                                                    styles.statusBadgeText,
+                                                    { color: userProfile.is_active ? theme.colors.status.success : theme.colors.status.error }
+                                                ]}>
+                                                    {userProfile.is_active ? 'Active' : 'Inactive'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.userMeta}>
+                                        <Text style={[styles.userMetaText, { color: theme.colors.text.muted }]}>
+                                            Created: {new Date(userProfile.created_at).toLocaleDateString()}
+                                        </Text>
+                                        {userProfile.last_login && (
+                                            <Text style={[styles.userMetaText, { color: theme.colors.text.muted }]}>
+                                                Last login: {new Date(userProfile.last_login).toLocaleDateString()}
+                                            </Text>
                                         )}
                                     </View>
-                                    <View style={styles.roleDetails}>
-                                        <Text style={[styles.roleName, { color: theme.colors.text.primary }]}>
-                                            {role.fullName}
-                                        </Text>
-                                        <Text style={[styles.roleEmail, { color: theme.colors.text.secondary }]}>
-                                            {role.email}
-                                        </Text>
-                                        <Text style={[styles.rolePhone, { color: theme.colors.text.muted }]}>
-                                            {role.phone}
-                                        </Text>
-                                    </View>
-                                </View>
-                                <View style={styles.roleBadges}>
-                                    <View style={[styles.roleBadge, { backgroundColor: theme.colors.primary + '20' }]}>
-                                        <Text style={[styles.roleBadgeText, { color: theme.colors.primary }]}>
-                                            {ROLE_LABELS[role.role]}
-                                        </Text>
-                                    </View>
-                                    <View style={[
-                                        styles.statusBadge,
-                                        { backgroundColor: role.isActive ? theme.colors.status.success + '20' : theme.colors.status.error + '20' }
-                                    ]}>
-                                        <Text style={[
-                                            styles.statusBadgeText,
-                                            { color: role.isActive ? theme.colors.status.success : theme.colors.status.error }
-                                        ]}>
-                                            {role.isActive ? 'Active' : 'Inactive'}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
 
-                            <View style={styles.roleActions}>
-                                <TouchableOpacity
-                                    style={[styles.actionButton, { backgroundColor: theme.colors.status.warning + '20' }]}
-                                    onPress={() => handleEditRole(role)}
-                                >
-                                    <Edit size={16} color={theme.colors.status.warning} />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.actionButton, { backgroundColor: theme.colors.status.error + '20' }]}
-                                    onPress={() => handleDeleteRole(role)}
-                                >
-                                    <Trash2 size={16} color={theme.colors.status.error} />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    ))}
-                </View>
+                                    <View style={styles.userActions}>
+                                        <TouchableOpacity
+                                            style={[styles.actionButton, { backgroundColor: theme.colors.status.warning + '20' }]}
+                                            onPress={() => handleEditUser(userProfile)}
+                                        >
+                                            <Edit size={16} color={theme.colors.status.warning} />
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.actionButton, { backgroundColor: theme.colors.status.error + '20' }]}
+                                            onPress={() => handleDeleteUser(userProfile)}
+                                        >
+                                            <Trash2 size={16} color={theme.colors.status.error} />
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ))
+                        )}
+                    </View>
+                )}
             </View>
         );
     };
@@ -854,11 +937,12 @@ export default function SettingsPage() {
                 {renderTabContent()}
             </ScrollView>
 
-            {/* Add Role Modal */}
-            <RoleAddForm
-                visible={showAddRoleModal}
-                onClose={() => setShowAddRoleModal(false)}
-                onSubmit={handleAddUser}
+            {/* Add User Modal */}
+            <AddUserForm
+                visible={showAddUserModal}
+                onClose={() => setShowAddUserModal(false)}
+                onUserAdded={handleUserAdded}
+                currentUserId={user?.id || ''}
             />
         </SharedLayout>
     );
@@ -1201,6 +1285,187 @@ const styles = StyleSheet.create({
     saveButtonText: {
         fontSize: 16,
         fontWeight: '600',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-
+    profileInfo: {
+        flex: 1,
+    },
+    profileName: {
+        fontSize: 18,
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    profileRole: {
+        fontSize: 14,
+    },
+    inputContainer: {
+        marginBottom: 16,
+    },
+    inputLabel: {
+        fontSize: 14,
+        fontWeight: '500',
+        marginBottom: 8,
+    },
+    textInput: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        fontSize: 16,
+    },
+    passwordSection: {
+        marginTop: 16,
+    },
+    settingRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0,0,0,0.1)',
+    },
+    settingInfo: {
+        flex: 1,
+        marginRight: 16,
+    },
+    settingTitle: {
+        fontSize: 16,
+        fontWeight: '500',
+        marginBottom: 4,
+    },
+    settingDescription: {
+        fontSize: 12,
+    },
+    saveButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+        borderRadius: 12,
+        marginTop: 24,
+        gap: 8,
+    },
+    saveButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    themeOptions: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    themeOption: {
+        flex: 1,
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        gap: 8,
+    },
+    themeOptionText: {
+        fontSize: 12,
+        fontWeight: '500',
+    },
+    colorPalettes: {
+        gap: 12,
+    },
+    colorPalette: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        gap: 12,
+    },
+    // User Management Styles
+    sectionSubtitle: {
+        fontSize: 14,
+        marginTop: 4,
+    },
+    loadingContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 40,
+    },
+    loadingText: {
+        fontSize: 14,
+        marginTop: 12,
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 40,
+    },
+    emptyTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        marginTop: 16,
+        marginBottom: 8,
+    },
+    emptyText: {
+        fontSize: 14,
+        textAlign: 'center',
+    },
+    usersContainer: {
+        gap: 12,
+    },
+    userCard: {
+        borderRadius: 12,
+        borderWidth: 1,
+        padding: 16,
+    },
+    userHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 12,
+    },
+    userInfo: {
+        flexDirection: 'row',
+        flex: 1,
+        marginRight: 12,
+    },
+    userDetails: {
+        flex: 1,
+        marginLeft: 12,
+    },
+    userName: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    userEmail: {
+        fontSize: 14,
+        marginBottom: 2,
+    },
+    userPhone: {
+        fontSize: 12,
+        marginBottom: 2,
+    },
+    userLocations: {
+        fontSize: 12,
+        fontStyle: 'italic',
+    },
+    userBadges: {
+        alignItems: 'flex-end',
+        gap: 6,
+    },
+    userMeta: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+        paddingTop: 8,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.1)',
+    },
+    userMetaText: {
+        fontSize: 11,
+    },
+    userActions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 8,
+    },
 });
+
+export default SettingsPage;

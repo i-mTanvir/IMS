@@ -33,18 +33,21 @@ export default function RootLayout() {
               <Stack.Screen name="dashboard" />
               <Stack.Screen name="search" />
               <Stack.Screen name="products" />
-              <Stack.Screen name="add" />
               <Stack.Screen name="history" />
               <Stack.Screen name="inventory" />
               <Stack.Screen name="sales" />
               <Stack.Screen name="customers" />
               <Stack.Screen name="suppliers" />
               <Stack.Screen name="notification" />
-              <Stack.Screen name="profile" />
               <Stack.Screen name="settings" />
               <Stack.Screen name="reports" />
               <Stack.Screen name="samples" />
               <Stack.Screen name="logs" />
+              <Stack.Screen name="support" />
+              <Stack.Screen name="transfer" />
+              <Stack.Screen name="categories" />
+              <Stack.Screen name="database-setup" />
+              <Stack.Screen name="database-test" />
               <Stack.Screen name="+not-found" />
             </Stack>
           </AuthProvider>

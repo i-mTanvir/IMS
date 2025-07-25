@@ -18,7 +18,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Create Supabase client with enhanced configuration
-export const supabase: SupabaseClient<Database> = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,

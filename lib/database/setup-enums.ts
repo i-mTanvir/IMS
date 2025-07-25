@@ -115,12 +115,12 @@ export async function testEnumsCreated() {
     }
     
     const enumCount = data?.length || 0;
-    console.log(\`✅ Found \${enumCount} ENUM types in database\`);
+    console.log(`✅ Found ${enumCount} ENUM types in database`);
     
     if (enumCount > 0) {
       console.log('📋 Available ENUMs:');
       data.forEach((enumType: any) => {
-        console.log(\`  - \${enumType.enum_name}: [\${enumType.enum_values.join(', ')}]\`);
+        console.log(`  - ${enumType.enum_name}: [${enumType.enum_values.join(', ')}]`);
       });
     }
     
@@ -132,7 +132,7 @@ export async function testEnumsCreated() {
 }
 
 // Instructions for manual setup
-export const SETUP_INSTRUCTIONS = \`
+export const SETUP_INSTRUCTIONS = `
 🔧 ENUM Setup Instructions:
 
 1. Open your Supabase Dashboard: https://supabase.com/dashboard/project/wfecqahlnfnczhkxvcjv
@@ -148,7 +148,7 @@ export const SETUP_INSTRUCTIONS = \`
 6. Come back to this application and test the connection
 
 The ENUMs are required before we can create any tables, as they define the allowed values for various fields.
-\`;
+`;
 
 export default {
   ENUM_SETUP_SQL,

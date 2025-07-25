@@ -21,6 +21,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 // Login credentials interface
 interface LoginCredentials {
@@ -29,88 +30,26 @@ interface LoginCredentials {
   rememberMe: boolean;
 }
 
-// Mock user database with role-based permissions
-const mockUsers = [
-  {
-    email: 'admin@gmail.com',
-    password: 'admin123',
-    name: 'Super Administrator',
-    role: 'super_admin',
-    permissions: {
-      dashboard: true,
-      products: { view: true, add: true, edit: true, delete: true },
-      inventory: { view: true, add: true, edit: true, delete: true, transfer: true },
-      sales: { view: true, add: true, edit: true, delete: true, invoice: true },
-      customers: { view: true, add: true, edit: true, delete: true },
-      suppliers: { view: true, add: true, edit: true, delete: true },
-      samples: { view: true, add: true, edit: true, delete: true },
-      reports: { view: true, export: true },
-      notifications: { view: true, manage: true },
-      activityLogs: { view: true },
-      settings: { view: true, userManagement: true, systemSettings: true },
-      help: { view: true },
-    },
-  },
+// Demo credentials for testing
+const demoCredentials = [
   {
     email: 'admin@serranotex.com',
-    password: 'admin123',
-    name: 'System Administrator',
-    role: 'admin',
-    permissions: {
-      dashboard: true,
-      products: { view: true, add: true, edit: true, delete: true },
-      inventory: { view: true, add: true, edit: true, delete: false, transfer: true },
-      sales: { view: true, add: true, edit: true, delete: false, invoice: true },
-      customers: { view: true, add: true, edit: true, delete: false },
-      suppliers: { view: true, add: true, edit: true, delete: false },
-      samples: { view: true, add: true, edit: true, delete: false },
-      reports: { view: true, export: true },
-      notifications: { view: true, manage: false },
-      activityLogs: { view: true },
-      settings: { view: true, userManagement: false, systemSettings: false },
-      help: { view: true },
-    },
+    password: 'Admin123!',
+    role: 'Super Admin',
+    description: 'Full system access'
   },
   {
-    email: 'sales@serranotex.com',
-    password: 'sales123',
-    name: 'Sales Manager',
-    role: 'sales_manager',
-    permissions: {
-      dashboard: true,
-      products: { view: true, add: false, edit: false, delete: false },
-      inventory: { view: true, add: false, edit: false, delete: false, transfer: false },
-      sales: { view: true, add: true, edit: true, delete: false, invoice: true },
-      customers: { view: true, add: true, edit: true, delete: false },
-      suppliers: { view: true, add: false, edit: false, delete: false },
-      samples: { view: true, add: true, edit: true, delete: false },
-      reports: { view: true, export: false },
-      notifications: { view: true, manage: false },
-      activityLogs: { view: false },
-      settings: { view: false, userManagement: false, systemSettings: false },
-      help: { view: true },
-    },
+    email: 'sales@serranotex.com', 
+    password: 'Sales123!',
+    role: 'Sales Manager',
+    description: 'Sales and customer management'
   },
   {
     email: 'investor@serranotex.com',
-    password: 'investor123',
-    name: 'Investor',
-    role: 'investor',
-    permissions: {
-      dashboard: true,
-      products: { view: true, add: false, edit: false, delete: false },
-      inventory: { view: true, add: false, edit: false, delete: false, transfer: false },
-      sales: { view: true, add: false, edit: false, delete: false, invoice: false },
-      customers: { view: true, add: false, edit: false, delete: false },
-      suppliers: { view: true, add: false, edit: false, delete: false },
-      samples: { view: true, add: false, edit: false, delete: false },
-      reports: { view: true, export: false },
-      notifications: { view: true, manage: false },
-      activityLogs: { view: false },
-      settings: { view: false, userManagement: false, systemSettings: false },
-      help: { view: true },
-    },
-  },
+    password: 'Investor123!', 
+    role: 'Investor',
+    description: 'Read-only dashboard access'
+  }
 ];
 
 export default function LoginPage() {
@@ -153,27 +92,78 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Sign in with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password,
+      });
 
-      // Find user in mock database
-      const user = mockUsers.find(
-        u => u.email === credentials.email && u.password === credentials.password
-      );
-
-      if (!user) {
-        Alert.alert('Login Failed', 'Invalid email or password. Please try again.');
+      if (authError) {
+        console.error('Auth error:', authError);
+        Alert.alert('Login Failed', authError.message || 'Invalid email or password. Please try again.');
         setIsLoading(false);
         return;
       }
 
-      // Create user session
+      if (!authData.user) {
+        Alert.alert('Login Failed', 'No user data received. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Get user profile from our users table
+      const { data: userProfile, error: profileError } = await supabase
+        .from('users')
+        .select(`
+          *,
+          user_permissions!user_permissions_user_id_fkey (
+            module,
+            can_create,
+            can_read,
+            can_update,
+            can_delete,
+            can_approve,
+            location_restrictions
+          )
+        `)
+        .eq('email', credentials.email)
+        .single();
+
+      if (profileError) {
+        console.error('Profile error:', profileError);
+        Alert.alert('Login Error', 'Could not load user profile. Please contact support.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Update last login
+      await supabase
+        .from('users')
+        .update({ last_login: new Date().toISOString() })
+        .eq('id', userProfile.id);
+
+      // Create user session with permissions
+      const permissions: Record<string, any> = {};
+      userProfile.user_permissions?.forEach((perm: any) => {
+        permissions[perm.module.toLowerCase()] = {
+          view: perm.can_read,
+          add: perm.can_create,
+          edit: perm.can_update,
+          delete: perm.can_delete,
+          approve: perm.can_approve,
+          locationRestrictions: perm.location_restrictions
+        };
+      });
+
       const userSession = {
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        permissions: user.permissions,
+        id: userProfile.id,
+        email: userProfile.email,
+        name: userProfile.full_name,
+        role: userProfile.role,
+        permissions,
+        assignedLocations: userProfile.assigned_locations,
         loginTime: new Date().toISOString(),
+        supabaseUser: authData.user
       };
 
       // Login user
@@ -184,7 +174,7 @@ export default function LoginPage() {
 
       Alert.alert(
         'Login Successful',
-        `Welcome back, ${user.name}!\nRole: ${user.role.replace('_', ' ').toUpperCase()}`
+        `Welcome back, ${userProfile.full_name}!\nRole: ${userProfile.role.replace('_', ' ').toUpperCase()}`
       );
     } catch (error) {
       console.error('Login error:', error);
@@ -252,7 +242,13 @@ export default function LoginPage() {
       fontSize: 16,
       fontWeight: '600',
       color: theme.colors.text.primary,
+      marginBottom: 8,
+    },
+    demoSubtitle: {
+      fontSize: 12,
+      color: theme.colors.text.secondary,
       marginBottom: 12,
+      fontStyle: 'italic',
     },
     demoItem: {
       flexDirection: 'row',
@@ -273,6 +269,12 @@ export default function LoginPage() {
     demoEmail: {
       fontSize: 12,
       color: theme.colors.text.secondary,
+      marginBottom: 2,
+    },
+    demoDescription: {
+      fontSize: 11,
+      color: theme.colors.text.muted,
+      fontStyle: 'italic',
     },
     demoButton: {
       backgroundColor: theme.colors.primary + '20',
@@ -404,17 +406,19 @@ export default function LoginPage() {
             {/* Demo Credentials */}
             <View style={styles.demoCredentials}>
               <Text style={styles.demoTitle}>Demo Credentials:</Text>
+              <Text style={styles.demoSubtitle}>
+                Create these users in Supabase Dashboard → Authentication → Users
+              </Text>
               
-              {mockUsers.map((user, index) => (
+              {demoCredentials.map((user, index) => (
                 <View
                   key={user.email}
-                  style={[styles.demoItem, index === mockUsers.length - 1 && styles.demoItemLast]}
+                  style={[styles.demoItem, index === demoCredentials.length - 1 && styles.demoItemLast]}
                 >
-                  <View>
-                    <Text style={styles.demoRole}>
-                      {user.role.replace('_', ' ').toUpperCase()}
-                    </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.demoRole}>{user.role}</Text>
                     <Text style={styles.demoEmail}>{user.email}</Text>
+                    <Text style={styles.demoDescription}>{user.description}</Text>
                   </View>
                   <TouchableOpacity
                     style={styles.demoButton}
