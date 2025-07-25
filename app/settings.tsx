@@ -51,6 +51,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
+import RoleAddForm from '@/components/forms/RoleAddForm';
 
 // Types
 interface RoleManagement {
@@ -240,9 +241,25 @@ export default function SettingsPage() {
         Alert.alert('Success', 'Appearance settings saved successfully!');
     };
 
-    const handleAddUser = () => {
-        Alert.alert('Add User', 'Add new user functionality');
-        setShowAddRoleModal(false);
+    const handleAddUser = (userData: any) => {
+        // Add the new user to the roles list
+        const newUser: RoleManagement = {
+            id: (roles.length + 1).toString(),
+            userId: (roles.length + 1).toString(),
+            fullName: userData.userName,
+            email: userData.email,
+            phone: userData.mobileNumber,
+            role: userData.role.toLowerCase().replace(' ', '_') as 'super_admin' | 'admin' | 'sales_manager' | 'investor',
+            isActive: true,
+            permissions: userData.role === 'Admin' ? ['manage_products', 'manage_sales', 'view_reports'] : 
+                        userData.role === 'Sales Manager' ? ['view_reports'] : [],
+            createdAt: new Date(),
+            createdBy: user?.name || 'Current User',
+            lastUpdated: new Date(),
+        };
+        
+        setRoles(prev => [...prev, newUser]);
+        Alert.alert('Success', `User ${userData.userName} has been added successfully!`);
     };
 
     const handleEditRole = (role: RoleManagement) => {
@@ -838,87 +855,11 @@ export default function SettingsPage() {
             </ScrollView>
 
             {/* Add Role Modal */}
-            <Modal
+            <RoleAddForm
                 visible={showAddRoleModal}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowAddRoleModal(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.colors.card }]}>
-                        <View style={styles.modalHeader}>
-                            <Text style={[styles.modalTitle, { color: theme.colors.text.primary }]}>
-                                Add New User
-                            </Text>
-                            <TouchableOpacity
-                                style={styles.modalCloseButton}
-                                onPress={() => setShowAddRoleModal(false)}
-                            >
-                                <X size={24} color={theme.colors.text.secondary} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.modalBody}>
-                            <View style={styles.inputContainer}>
-                                <Text style={[styles.inputLabel, { color: theme.colors.text.secondary }]}>Full Name</Text>
-                                <TextInput
-                                    style={[styles.textInput, { backgroundColor: theme.colors.input, borderColor: theme.colors.border, color: theme.colors.text.primary }]}
-                                    placeholder="Enter full name"
-                                    placeholderTextColor={theme.colors.text.muted}
-                                />
-                            </View>
-
-                            <View style={styles.inputContainer}>
-                                <Text style={[styles.inputLabel, { color: theme.colors.text.secondary }]}>Email Address</Text>
-                                <TextInput
-                                    style={[styles.textInput, { backgroundColor: theme.colors.input, borderColor: theme.colors.border, color: theme.colors.text.primary }]}
-                                    placeholder="Enter email address"
-                                    keyboardType="email-address"
-                                    placeholderTextColor={theme.colors.text.muted}
-                                />
-                            </View>
-
-                            <View style={styles.inputContainer}>
-                                <Text style={[styles.inputLabel, { color: theme.colors.text.secondary }]}>Phone Number</Text>
-                                <TextInput
-                                    style={[styles.textInput, { backgroundColor: theme.colors.input, borderColor: theme.colors.border, color: theme.colors.text.primary }]}
-                                    placeholder="Enter phone number"
-                                    keyboardType="phone-pad"
-                                    placeholderTextColor={theme.colors.text.muted}
-                                />
-                            </View>
-
-                            <View style={styles.inputContainer}>
-                                <Text style={[styles.inputLabel, { color: theme.colors.text.secondary }]}>Role</Text>
-                                <View style={[styles.dropdown, { backgroundColor: theme.colors.input, borderColor: theme.colors.border }]}>
-                                    <Text style={[styles.dropdownText, { color: theme.colors.text.primary }]}>
-                                        Select Role
-                                    </Text>
-                                </View>
-                            </View>
-                        </View>
-
-                        <View style={styles.modalFooter}>
-                            <TouchableOpacity
-                                style={[styles.modalButton, styles.cancelButton, { backgroundColor: theme.colors.backgroundSecondary }]}
-                                onPress={() => setShowAddRoleModal(false)}
-                            >
-                                <Text style={[styles.modalButtonText, { color: theme.colors.text.secondary }]}>
-                                    Cancel
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.modalButton, styles.confirmButton, { backgroundColor: theme.colors.primary }]}
-                                onPress={handleAddUser}
-                            >
-                                <Text style={[styles.modalButtonText, { color: theme.colors.text.inverse }]}>
-                                    Add User
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
+                onClose={() => setShowAddRoleModal(false)}
+                onSubmit={handleAddUser}
+            />
         </SharedLayout>
     );
 }
@@ -1261,53 +1202,5 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
     },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContent: {
-        margin: 20,
-        borderRadius: 16,
-        padding: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 5,
-        maxHeight: '80%',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    modalCloseButton: {
-        padding: 4,
-    },
-    modalBody: {
-        marginBottom: 20,
-    },
-    modalFooter: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    modalButton: {
-        flex: 1,
-        paddingVertical: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    cancelButton: {},
-    confirmButton: {},
-    modalButtonText: {
-        fontSize: 14,
-        fontWeight: '500',
-    },
+
 });
