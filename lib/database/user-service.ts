@@ -141,8 +141,8 @@ export class UserService extends BaseService {
   private generateDefaultPermissions(role: UserRole): UserPermissions {
     const basePermissions: UserPermissions = {
       dashboard: true,
-      products: { view: false, add: false, edit: false, delete: false },
-      inventory: { view: false, add: false, edit: false, delete: false, approve: false },
+      // products: { view: false, add: false, edit: false, delete: false }, // Removed - will be implemented later
+      // inventory: { view: false, add: false, edit: false, delete: false, approve: false }, // Removed - will be implemented later
       sales: { view: false, add: false, edit: false, delete: false },
       customers: { view: false, add: false, edit: false, delete: false },
       suppliers: { view: false, add: false, edit: false, delete: false },
@@ -157,8 +157,8 @@ export class UserService extends BaseService {
         // Super admin gets all permissions
         return {
           dashboard: true,
-          products: { view: true, add: true, edit: true, delete: true },
-          inventory: { view: true, add: true, edit: true, delete: true, approve: true },
+          // products: { view: true, add: true, edit: true, delete: true }, // Removed - will be implemented later
+          // inventory: { view: true, add: true, edit: true, delete: true, approve: true }, // Removed - will be implemented later
           sales: { view: true, add: true, edit: true, delete: true },
           customers: { view: true, add: true, edit: true, delete: true },
           suppliers: { view: true, add: true, edit: true, delete: true },
@@ -172,8 +172,8 @@ export class UserService extends BaseService {
         // Admin gets most permissions (configurable)
         return {
           dashboard: true,
-          products: { view: true, add: true, edit: true, delete: true },
-          inventory: { view: true, add: true, edit: true, delete: false, approve: true },
+          // products: { view: true, add: true, edit: true, delete: true }, // Removed - will be implemented later
+          // inventory: { view: true, add: true, edit: true, delete: false, approve: true }, // Removed - will be implemented later
           sales: { view: true, add: true, edit: true, delete: false },
           customers: { view: true, add: true, edit: true, delete: false },
           suppliers: { view: true, add: true, edit: true, delete: false },
@@ -187,8 +187,8 @@ export class UserService extends BaseService {
         // Sales manager gets location-specific permissions
         return {
           dashboard: true,
-          products: { view: true, add: false, edit: false, delete: false },
-          inventory: { view: true, add: false, edit: false, delete: false, approve: false },
+          // products: { view: true, add: false, edit: false, delete: false }, // Removed - will be implemented later
+          // inventory: { view: true, add: false, edit: false, delete: false, approve: false }, // Removed - will be implemented later
           sales: { view: true, add: true, edit: true, delete: false },
           customers: { view: true, add: true, edit: true, delete: false },
           suppliers: { view: true, add: false, edit: false, delete: false },
@@ -202,8 +202,8 @@ export class UserService extends BaseService {
         // Investor gets read-only dashboard access
         return {
           dashboard: true,
-          products: { view: false, add: false, edit: false, delete: false },
-          inventory: { view: false, add: false, edit: false, delete: false, approve: false },
+          // products: { view: false, add: false, edit: false, delete: false }, // Removed - will be implemented later
+          // inventory: { view: false, add: false, edit: false, delete: false, approve: false }, // Removed - will be implemented later
           sales: { view: false, add: false, edit: false, delete: false },
           customers: { view: false, add: false, edit: false, delete: false },
           suppliers: { view: false, add: false, edit: false, delete: false },

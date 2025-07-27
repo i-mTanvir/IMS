@@ -35,6 +35,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
+import SalesForm from '@/components/forms/SalesForm';
 
 // Interfaces
 interface Customer {
@@ -308,6 +309,7 @@ export default function SalesPage() {
   const [duePayments] = useState<DuePayment[]>(mockDuePayments);
   const [filters, setFilters] = useState<SalesFilters>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [showSalesForm, setShowSalesForm] = useState(false);
 
   const filteredSales = useMemo(() => {
     return sales.filter(sale => {
@@ -760,6 +762,33 @@ export default function SalesPage() {
     }
   };
 
+  // Handle sales form submission
+  const handleSalesSubmit = async (salesData: any) => {
+    try {
+      console.log('Sales data submitted:', salesData);
+      // TODO: Implement actual sales submission logic
+      Alert.alert('Success', 'Sale completed successfully!');
+      setShowSalesForm(false);
+      // Refresh sales data here
+    } catch (error) {
+      console.error('Error submitting sale:', error);
+      Alert.alert('Error', 'Failed to complete sale. Please try again.');
+    }
+  };
+
+  // Handle save draft
+  const handleSaveDraft = async (draftData: any) => {
+    try {
+      console.log('Draft data saved:', draftData);
+      // TODO: Implement actual draft saving logic
+      Alert.alert('Draft Saved', 'Sale draft has been saved successfully!');
+      setShowSalesForm(false);
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      Alert.alert('Error', 'Failed to save draft. Please try again.');
+    }
+  };
+
   return (
     <SharedLayout title="Sales & Invoicing">
       <View style={styles.headerActions}>
@@ -771,7 +800,7 @@ export default function SalesPage() {
         {hasPermission('sales', 'add') && (
           <TouchableOpacity 
             style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-            onPress={() => router.push('/add')}
+            onPress={() => setShowSalesForm(true)}
           >
             <Plus size={20} color={theme.colors.text.inverse} />
           </TouchableOpacity>
@@ -844,6 +873,14 @@ export default function SalesPage() {
           />
         )}
       </ScrollView>
+
+      {/* Sales Form Modal */}
+      <SalesForm
+        visible={showSalesForm}
+        onClose={() => setShowSalesForm(false)}
+        onSubmit={handleSalesSubmit}
+        onSaveDraft={handleSaveDraft}
+      />
     </SharedLayout>
   );
 }

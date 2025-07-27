@@ -1,9 +1,9 @@
 // Report types
 export type ReportType = 
   | 'sales' 
-  | 'product_performance' 
+  // | 'product_performance'  // Removed - will be implemented later
   | 'customer' 
-  | 'inventory' 
+  // | 'inventory'  // Removed - will be implemented later
   | 'financial' 
   | 'sample';
 
@@ -28,13 +28,7 @@ export interface SalesReport extends BaseReport {
   totalRevenue: number;
   totalTransactions: number;
   averageOrderValue: number;
-  topProducts: {
-    productId: string;
-    productName: string;
-    quantitySold: number;
-    revenue: number;
-    profitMargin: number;
-  }[];
+  // topProducts removed - will be implemented later
   topCustomers: {
     customerId: string;
     customerName: string;
@@ -68,18 +62,8 @@ export interface SalesReport extends BaseReport {
   }[];
 }
 
-// Product performance report interface
-export interface ProductPerformanceReport extends BaseReport {
-  products: {
-    productId: string;
-    productName: string;
-    quantitySold: number;
-    revenue: number;
-    profitMargin: number;
-    stockLevel: number;
-    turnoverRate: number;
-  }[];
-}
+// Product performance report interface - removed, will be implemented later
+// export interface ProductPerformanceReport extends BaseReport {}
 
 // Customer report interface
 export interface CustomerReport extends BaseReport {
@@ -97,17 +81,7 @@ export interface CustomerReport extends BaseReport {
 
 // Inventory report interface
 export interface InventoryReport extends BaseReport {
-  inventory: {
-    productId: string;
-    productName: string;
-    stockLevel: number;
-    reorderPoint: number;
-    turnoverRate: number;
-    daysOfSupply: number;
-    value: number;
-    locationId: string;
-    locationName: string;
-  }[];
+  // inventory removed - will be implemented later
 }
 
 // Financial report interface
@@ -246,11 +220,7 @@ export interface BusinessIntelligence {
       predicted: number;
       confidence: number;
     }[];
-    demand: {
-      productId: string;
-      predicted: number;
-      confidence: number;
-    }[];
+    // demand removed - will be implemented later
     cashFlow: {
       date: Date;
       predicted: number;

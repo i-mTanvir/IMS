@@ -18,9 +18,9 @@ CREATE TYPE location_type_enum AS ENUM ('warehouse', 'showroom');
 CREATE TYPE customer_type_enum AS ENUM ('vip', 'regular', 'wholesale');
 CREATE TYPE supplier_type_enum AS ENUM ('manufacturer', 'distributor', 'wholesaler', 'retailer');
 
--- Product and Inventory ENUMs
-CREATE TYPE unit_measure_enum AS ENUM ('meter', 'piece', 'roll', 'yard', 'kilogram');
-CREATE TYPE stock_status_enum AS ENUM ('active', 'depleted', 'expired', 'damaged', 'reserved');
+-- Product and Inventory ENUMs - Removed, will be implemented later
+-- CREATE TYPE unit_measure_enum AS ENUM ('meter', 'piece', 'roll', 'yard', 'kilogram');
+-- CREATE TYPE stock_status_enum AS ENUM ('active', 'depleted', 'expired', 'damaged', 'reserved');
 
 -- Transaction Management ENUMs
 CREATE TYPE payment_method_enum AS ENUM ('cash', 'card', 'bank_transfer', 'check', 'online', 'credit');
@@ -68,9 +68,10 @@ CREATE TYPE action_type_enum AS ENUM (
 );
 
 CREATE TYPE module_type_enum AS ENUM (
-    'USERS', 'PRODUCTS', 'CATEGORIES', 'SUPPLIERS', 'CUSTOMERS', 
-    'LOCATIONS', 'SALES', 'PURCHASES', 'INVENTORY', 'TRANSFERS',
+    'USERS', 'CATEGORIES', 'SUPPLIERS', 'CUSTOMERS', 
+    'LOCATIONS', 'SALES', 'PURCHASES', 'TRANSFERS',
     'SAMPLES', 'WASTAGE', 'PAYMENTS', 'REPORTS', 'SETTINGS', 'SYSTEM'
+    -- 'PRODUCTS', 'INVENTORY' removed - will be implemented later
 );
 
 CREATE TYPE severity_enum AS ENUM ('low', 'medium', 'high', 'critical');

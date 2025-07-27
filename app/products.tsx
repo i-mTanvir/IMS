@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -31,180 +31,52 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
 import ProductAddForm from '@/components/forms/ProductAddForm';
+import OneProductAddForm from '@/components/forms/OneProductAddForm';
+import { productService, Product, ProductFilters } from '@/lib/database/product-service';
 
-// Product interfaces
-interface Product {
-  id: string;
-  name: string;
-  productCode: string;
-  category: string;
-  purchasePrice: number;
-  sellingPrice: number;
-  yardPrice: number;
-  currentStock: number;
-  supplier: string;
-  dateAdded: Date;
-  isUnsold: boolean;
-  wastageCount: number;
-  status: 'In Stock' | 'Low Stock' | 'Out of Stock';
-  location: string;
-  available: number;
-  reserved: number;
-  onHand: number;
-  minimumThreshold: number;
-  image: string;
-}
-
-interface ProductFilters {
-  search?: string;
-  category?: string;
-  status?: string;
-  location?: string;
-}
-
-// Mock product data
-const mockProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Macbook Pro M1 2020',
-    productCode: '#LWIL02012',
-    category: 'Laptop',
-    purchasePrice: 1200,
-    sellingPrice: 1500,
-    yardPrice: 0,
-    currentStock: 120,
-    supplier: 'Apple Inc',
-    dateAdded: new Date('2024-01-15'),
-    isUnsold: false,
-    wastageCount: 0,
-    status: 'In Stock',
-    location: 'Warehouse 1',
-    available: 120,
-    reserved: 120,
-    onHand: 100,
-    minimumThreshold: 10,
-    image: 'https://images.pexels.com/photos/205421/pexels-photo-205421.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=1'
-  },
-  {
-    id: '2',
-    name: 'Mechanical Keyboard',
-    productCode: '#LWIL02015',
-    category: 'Accessories',
-    purchasePrice: 80,
-    sellingPrice: 120,
-    yardPrice: 0,
-    currentStock: 250,
-    supplier: 'Logitech',
-    dateAdded: new Date('2024-01-20'),
-    isUnsold: false,
-    wastageCount: 0,
-    status: 'In Stock',
-    location: 'Warehouse 2',
-    available: 250,
-    reserved: 250,
-    onHand: 205,
-    minimumThreshold: 20,
-    image: 'https://images.pexels.com/photos/2115256/pexels-photo-2115256.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=1'
-  },
-  {
-    id: '3',
-    name: 'Wired Mouse',
-    productCode: '#LWIL02014',
-    category: 'Accessories',
-    purchasePrice: 15,
-    sellingPrice: 25,
-    yardPrice: 0,
-    currentStock: 1250,
-    supplier: 'Dell',
-    dateAdded: new Date('2024-01-25'),
-    isUnsold: false,
-    wastageCount: 0,
-    status: 'Low Stock',
-    location: 'Warehouse 3',
-    available: 1250,
-    reserved: 1250,
-    onHand: 1130,
-    minimumThreshold: 50,
-    image: 'https://images.pexels.com/photos/2115217/pexels-photo-2115217.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=1'
-  },
-  {
-    id: '4',
-    name: 'Titan Watch',
-    productCode: '#LWIL02015',
-    category: 'Watch',
-    purchasePrice: 200,
-    sellingPrice: 300,
-    yardPrice: 0,
-    currentStock: 600,
-    supplier: 'Titan Company',
-    dateAdded: new Date('2024-02-01'),
-    isUnsold: false,
-    wastageCount: 0,
-    status: 'In Stock',
-    location: 'Warehouse 4',
-    available: 600,
-    reserved: 600,
-    onHand: 560,
-    minimumThreshold: 30,
-    image: 'https://images.pexels.com/photos/190819/pexels-photo-190819.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=1'
-  },
-  {
-    id: '5',
-    name: 'Sandisk Harddisk 1 TB',
-    productCode: '#LWIL02016',
-    category: 'Accessories',
-    purchasePrice: 60,
-    sellingPrice: 90,
-    yardPrice: 0,
-    currentStock: 250,
-    supplier: 'Sandisk',
-    dateAdded: new Date('2024-02-05'),
-    isUnsold: false,
-    wastageCount: 0,
-    status: 'Out of Stock',
-    location: 'Warehouse 3',
-    available: 0,
-    reserved: 0,
-    onHand: 0,
-    minimumThreshold: 25,
-    image: 'https://images.pexels.com/photos/163100/circuit-circuit-board-resistor-computer-163100.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=1'
-  }
-];
+// Product interfaces are now imported from product-service
 
 export default function ProductsPage() {
   const { theme } = useTheme();
   const { user, hasPermission } = useAuth();
   const router = useRouter();
-  const [products] = useState<Product[]>(mockProducts);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<ProductFilters>({});
   const [refreshing, setRefreshing] = useState(false);
   const [selectedView, setSelectedView] = useState<'list' | 'grid'>('list');
   const [showProductForm, setShowProductForm] = useState(false);
+  const [showSimpleForm, setShowSimpleForm] = useState(false);
 
-  const filteredProducts = useMemo(() => {
-    return products.filter(product => {
-      if (filters.search && 
-          !product.name.toLowerCase().includes(filters.search.toLowerCase()) && 
-          !product.productCode.toLowerCase().includes(filters.search.toLowerCase())) {
-        return false;
-      }
-      if (filters.category && product.category !== filters.category) {
-        return false;
-      }
-      if (filters.status && product.status !== filters.status) {
-        return false;
-      }
-      if (filters.location && product.location !== filters.location) {
-        return false;
-      }
-      return true;
-    });
-  }, [products, filters]);
+  // Load products from database
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
-  const onRefresh = () => {
+  const loadProducts = async () => {
+    try {
+      setLoading(true);
+      const data = await productService.getProducts(filters);
+      setProducts(data);
+    } catch (error) {
+      console.error('Error loading products:', error);
+      Alert.alert('Error', 'Failed to load products. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reload products when filters change
+  useEffect(() => {
+    if (!loading) {
+      loadProducts();
+    }
+  }, [filters]);
+
+  const onRefresh = async () => {
     setRefreshing(true);
-    // Simulate refresh
-    setTimeout(() => setRefreshing(false), 1000);
+    await loadProducts();
+    setRefreshing(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -225,7 +97,7 @@ export default function ProductsPage() {
     }
   };
 
-  const handleProductAction = (action: 'view' | 'edit' | 'delete', product: Product) => {
+  const handleProductAction = async (action: 'view' | 'edit' | 'delete', product: Product) => {
     switch (action) {
       case 'view':
         // Navigate to product details
@@ -248,7 +120,22 @@ export default function ProductsPage() {
           `Are you sure you want to delete ${product.name}?`,
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => console.log('Delete product') }
+            { 
+              text: 'Delete', 
+              style: 'destructive', 
+              onPress: async () => {
+                try {
+                  console.log('Deleting product:', product.name, product.id);
+                  await productService.deleteProduct(product.id);
+                  Alert.alert('Success', `Product "${product.name}" deleted successfully`);
+                  loadProducts(); // Refresh the list
+                } catch (error) {
+                  console.error('Delete product error:', error);
+                  const errorMessage = error?.message || 'Unknown error occurred';
+                  Alert.alert('Error', `Failed to delete product: ${errorMessage}`);
+                }
+              }
+            }
           ]
         );
         break;
@@ -256,23 +143,26 @@ export default function ProductsPage() {
   };
 
   const renderProductCard = ({ item: product }: { item: Product }) => {
-    const StatusIcon = getStatusIcon(product.status);
+    const StatusIcon = getStatusIcon(product.stock_status || 'In Stock');
     
     return (
       <View style={[styles.productCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
         <View style={styles.productHeader}>
-          <Image source={{ uri: product.image }} style={styles.productImage} />
+          <Image 
+            source={{ uri: product.product_image || 'https://via.placeholder.com/60x60?text=No+Image' }} 
+            style={styles.productImage} 
+          />
           <View style={styles.productInfo}>
             <Text style={[styles.productName, { color: theme.colors.text.primary }]} numberOfLines={2}>
               {product.name}
             </Text>
             <Text style={[styles.productCode, { color: theme.colors.text.secondary }]}>
-              {product.productCode}
+              {product.product_code}
             </Text>
             <View style={styles.statusContainer}>
-              <StatusIcon size={12} color={getStatusColor(product.status)} />
-              <Text style={[styles.statusText, { color: getStatusColor(product.status) }]}>
-                {product.status}
+              <StatusIcon size={12} color={getStatusColor(product.stock_status || 'In Stock')} />
+              <Text style={[styles.statusText, { color: getStatusColor(product.stock_status || 'In Stock') }]}>
+                {product.stock_status || 'In Stock'}
               </Text>
             </View>
           </View>
@@ -281,27 +171,27 @@ export default function ProductsPage() {
         <View style={styles.productDetails}>
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Category:</Text>
-            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>{product.category}</Text>
+            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>{product.category_name || 'N/A'}</Text>
           </View>
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Location:</Text>
             <View style={styles.locationContainer}>
               <MapPin size={12} color={theme.colors.text.secondary} />
-              <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>{product.location}</Text>
+              <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>{product.location_name || 'N/A'}</Text>
             </View>
           </View>
           <View style={styles.stockInfo}>
             <View style={styles.stockItem}>
               <Text style={[styles.stockLabel, { color: theme.colors.text.secondary }]}>Available</Text>
-              <Text style={[styles.stockValue, { color: theme.colors.primary }]}>{product.available}</Text>
+              <Text style={[styles.stockValue, { color: theme.colors.primary }]}>{product.available_stock}</Text>
             </View>
             <View style={styles.stockItem}>
-              <Text style={[styles.stockLabel, { color: theme.colors.text.secondary }]}>On Hand</Text>
-              <Text style={[styles.stockValue, { color: theme.colors.primary }]}>{product.onHand}</Text>
+              <Text style={[styles.stockLabel, { color: theme.colors.text.secondary }]}>Current</Text>
+              <Text style={[styles.stockValue, { color: theme.colors.primary }]}>{product.current_stock}</Text>
             </View>
             <View style={styles.stockItem}>
               <Text style={[styles.stockLabel, { color: theme.colors.text.secondary }]}>Reserved</Text>
-              <Text style={[styles.stockValue, { color: theme.colors.primary }]}>{product.reserved}</Text>
+              <Text style={[styles.stockValue, { color: theme.colors.primary }]}>{product.reserved_stock}</Text>
             </View>
           </View>
         </View>
@@ -341,14 +231,83 @@ export default function ProductsPage() {
       Alert.alert('Permission Denied', 'You do not have permission to add products.');
       return;
     }
+    setShowProductForm(true); // Use complex form
+  };
+
+  const handleAddProductComplex = () => {
+    if (!hasPermission('products', 'add')) {
+      Alert.alert('Permission Denied', 'You do not have permission to add products.');
+      return;
+    }
     setShowProductForm(true);
   };
 
-  const handleProductSubmit = (data: any) => {
-    console.log('Product form submitted:', data);
-    // Here you would normally add the product to your database
-    Alert.alert('Success', 'Product added successfully!');
-    setShowProductForm(false);
+  const handleSimpleProductSubmit = async (productName: string) => {
+    console.log('🚀 === SIMPLE PRODUCT SUBMIT ===');
+    console.log('Product name:', productName);
+    console.log('Current user:', user);
+    
+    Alert.alert('DEBUG', 'Simple product submit called!');
+    
+    if (!user) {
+      Alert.alert('Authentication Error', 'You must be logged in to add products.');
+      return;
+    }
+    
+    try {
+      console.log('Calling productService.createSimpleProduct...');
+      const result = await productService.createSimpleProduct(productName, user.id);
+      console.log('✅ Simple product created:', result);
+      
+      Alert.alert('Success', `Product "${productName}" added successfully!`);
+      setShowSimpleForm(false);
+      loadProducts(); // Refresh the list
+    } catch (error) {
+      console.error('=== ERROR IN SIMPLE PRODUCT SUBMISSION ===');
+      console.error('Error:', error);
+      Alert.alert('Error', `Failed to add product: ${error?.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleProductSubmit = async (data: any) => {
+    console.log('🚀 === COMPLEX FORM SUBMIT CALLED ===');
+    console.log('Received data:', data);
+    console.log('Current user:', user);
+    console.log('User permissions:', hasPermission('products', 'add'));
+    
+    // Add an alert to make sure this function is being called
+    Alert.alert('DEBUG', 'COMPLEX form handleProductSubmit was called!');
+    
+    if (!user) {
+      Alert.alert('Authentication Error', 'You must be logged in to add products.');
+      return;
+    }
+    
+    try {
+      console.log('Calling productService.createProductWithStock...');
+      console.log('User ID:', user?.id);
+      const result = await productService.createProductWithStock(data, user?.id);
+      console.log('✅ Product created successfully:', result);
+      
+      Alert.alert('Success', 'Product added successfully!');
+      setShowProductForm(false);
+      loadProducts(); // Refresh the list
+    } catch (error) {
+      console.error('=== ERROR IN PRODUCT SUBMISSION ===');
+      console.error('Error adding product:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
+      
+      // Show more specific error messages
+      let errorMessage = 'Unknown error occurred';
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      Alert.alert('Error', `Failed to add product: ${errorMessage}`);
+    }
   };
 
   return (
@@ -360,12 +319,22 @@ export default function ProductsPage() {
           <Download size={20} color={theme.colors.primary} />
         </TouchableOpacity>
         {hasPermission('products', 'add') && (
-          <TouchableOpacity 
-            style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-            onPress={handleAddProduct}
-          >
-            <Plus size={20} color={theme.colors.text.inverse} />
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity 
+              style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
+              onPress={handleAddProduct}
+            >
+              <Plus size={20} color={theme.colors.text.inverse} />
+            </TouchableOpacity>
+            
+            {/* Simple form button for testing */}
+            <TouchableOpacity 
+              style={[styles.addButton, { backgroundColor: theme.colors.secondary || '#6B7280' }]}
+              onPress={() => setShowSimpleForm(true)}
+            >
+              <Text style={{ color: '#FFFFFF', fontSize: 12 }}>Simple</Text>
+            </TouchableOpacity>
+          </>
         )}
       </View>
 
@@ -390,7 +359,7 @@ export default function ProductsPage() {
 
       {/* Products List */}
       <FlatList
-        data={filteredProducts}
+        data={products}
         renderItem={renderProductCard}
         keyExtractor={(item) => item.id}
         style={styles.productsList}
@@ -407,16 +376,23 @@ export default function ProductsPage() {
           <View style={styles.emptyContainer}>
             <Package size={48} color={theme.colors.text.muted} />
             <Text style={[styles.emptyText, { color: theme.colors.text.secondary }]}>
-              No products found
+              {loading ? 'Loading products...' : 'No products found'}
             </Text>
             <Text style={[styles.emptySubtext, { color: theme.colors.text.muted }]}>
-              Try adjusting your search or filters
+              {loading ? 'Please wait...' : 'Try adding a new product or adjusting your search'}
             </Text>
           </View>
         }
       />
 
-      {/* Product Add Form */}
+      {/* Simple Product Add Form */}
+      <OneProductAddForm
+        visible={showSimpleForm}
+        onClose={() => setShowSimpleForm(false)}
+        onSubmit={handleSimpleProductSubmit}
+      />
+
+      {/* Complex Product Add Form */}
       <ProductAddForm
         visible={showProductForm}
         onClose={() => setShowProductForm(false)}

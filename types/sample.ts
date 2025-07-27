@@ -27,9 +27,7 @@ export interface Sample {
   sampleNumber: string;
   sampleName: string;
   description: string;
-  productId: string;
-  productName: string;
-  productCode: string;
+  // Product fields removed - will be implemented later
   customerId: string;
   customerName: string;
   customerPhone: string;
@@ -64,7 +62,7 @@ export interface SampleFilters {
   search?: string;
   status?: SampleStatus;
   customerId?: string;
-  productId?: string;
+  // productId?: string; // Removed - will be implemented later
   purpose?: SamplePurpose;
   deliveryMethod?: DeliveryMethod;
   overdueOnly?: boolean;

@@ -476,7 +476,7 @@ CREATE POLICY "Locations manageable by admins" ON locations
 ```
 
 
-## Table 6: products
+## Table 6: products - REMOVED FOR CLEAN IMPLEMENTATION
 
 ### Description:
 

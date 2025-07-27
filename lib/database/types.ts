@@ -42,8 +42,8 @@ export interface ModulePermissions {
 
 export interface UserPermissions {
   dashboard: boolean;
-  products: ModulePermissions;
-  inventory: ModulePermissions;
+  // products: ModulePermissions; // Removed - will be implemented later
+  // inventory: ModulePermissions; // Removed - will be implemented later
   sales: ModulePermissions;
   customers: ModulePermissions;
   suppliers: ModulePermissions;

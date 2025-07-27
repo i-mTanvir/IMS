@@ -33,79 +33,69 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { productService, CreateProductRequest, Category, Supplier, Location } from '@/lib/database/product-service';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 interface ProductFormData {
   productName: string;
   productCode: string;
-  category: string;
+  categoryId: string;
   description: string;
   purchaseAmount: string;
   purchasePrice: string;
   sellingPrice: string;
   perMeterPrice: string;
   lotNumber: string;
-  supplier: string;
-  location: string;
+  supplierId: string;
+  locationId: string;
   minimumThreshold: string;
   paymentStatus: 'paid' | 'partial' | 'pending';
   paidAmount: string;
   dueDate: string;
   productImage: string | null;
+  initialQuantity: string;
+  purchaseDate: string;
+  color: string;
+  material: string;
+  width: string;
+  weight: string;
+  unitOfMeasure: 'meter' | 'piece' | 'roll' | 'yard' | 'kilogram';
 }
 
 interface ProductAddFormProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (data: ProductFormData) => void;
+  onSubmit: (data: CreateProductRequest & { initial_quantity: number; purchase_date: string; lot_number?: string }) => void;
   existingProduct?: any;
 }
 
-// Mock data for dropdowns - expanded for better search experience
-const categories = [
-  { id: '1', name: 'Sofa Fabrics', icon: '🛋️' },
-  { id: '2', name: 'Curtain Fabrics', icon: '🪟' },
-  { id: '3', name: 'Artificial Leather', icon: '👜' },
-  { id: '4', name: 'Garments', icon: '👕' },
-  { id: '5', name: 'Upholstery Fabrics', icon: '🪑' },
-  { id: '6', name: 'Denim Fabrics', icon: '👖' },
-  { id: '7', name: 'Cotton Fabrics', icon: '🌿' },
-  { id: '8', name: 'Silk Fabrics', icon: '🎀' },
-  { id: '9', name: 'Wool Fabrics', icon: '🐑' },
-  { id: '10', name: 'Linen Fabrics', icon: '🌾' },
-  { id: '11', name: 'Polyester Fabrics', icon: '🧵' },
-  { id: '12', name: 'Velvet Fabrics', icon: '✨' },
-  { id: '13', name: 'Canvas Fabrics', icon: '🎨' },
-  { id: '14', name: 'Mesh Fabrics', icon: '🕸️' },
-  { id: '15', name: 'Lace Fabrics', icon: '🌸' },
-];
+// Icon mapping for categories
+const categoryIcons: Record<string, string> = {
+  'Sofa Fabrics': '🛋️',
+  'Curtain Fabrics': '🪟',
+  'Artificial Leather': '👜',
+  'Garments': '👕',
+  'Upholstery Fabrics': '🪑',
+  'Denim Fabrics': '👖',
+  'Cotton Fabrics': '🌿',
+  'Silk Fabrics': '🎀',
+  'Wool Fabrics': '🐑',
+  'Linen Fabrics': '🌾',
+  'Polyester Fabrics': '🧵',
+  'Velvet Fabrics': '✨',
+  'Canvas Fabrics': '🎨',
+  'Mesh Fabrics': '🕸️',
+  'Lace Fabrics': '🌸',
+};
 
-const suppliers = [
-  { id: '1', name: 'Textile Mills Ltd', company: 'Premium Fabrics Co.', rating: 4.8 },
-  { id: '2', name: 'Global Textiles', company: 'International Suppliers', rating: 4.6 },
-  { id: '3', name: 'Local Fabric House', company: 'Dhaka Textiles', rating: 4.9 },
-  { id: '4', name: 'Asian Textile Corp', company: 'Quality Fabrics Ltd', rating: 4.7 },
-  { id: '5', name: 'Modern Fabrics', company: 'Contemporary Textiles', rating: 4.5 },
-  { id: '6', name: 'Heritage Textiles', company: 'Traditional Fabrics', rating: 4.8 },
-  { id: '7', name: 'Eco Fabrics Ltd', company: 'Sustainable Textiles', rating: 4.9 },
-  { id: '8', name: 'Luxury Textiles', company: 'Premium Materials', rating: 4.6 },
-  { id: '9', name: 'Industrial Fabrics', company: 'Heavy Duty Textiles', rating: 4.4 },
-  { id: '10', name: 'Fashion Fabrics', company: 'Trendy Textiles', rating: 4.7 },
-];
-
-const locations = [
-  { id: '1', name: 'Warehouse 1', type: 'warehouse', icon: '🏭' },
-  { id: '2', name: 'Warehouse 2', type: 'warehouse', icon: '🏭' },
-  { id: '3', name: 'Warehouse 3', type: 'warehouse', icon: '🏭' },
-  { id: '4', name: 'Showroom 1', type: 'showroom', icon: '🏪' },
-  { id: '5', name: 'Showroom 2', type: 'showroom', icon: '🏪' },
-  { id: '6', name: 'Storage A', type: 'storage', icon: '📦' },
-  { id: '7', name: 'Storage B', type: 'storage', icon: '📦' },
-  { id: '8', name: 'Main Store', type: 'store', icon: '🏬' },
-  { id: '9', name: 'Branch Store', type: 'store', icon: '🏬' },
-  { id: '10', name: 'Online Warehouse', type: 'warehouse', icon: '💻' },
-];
+// Icon mapping for locations
+const locationIcons: Record<string, string> = {
+  'warehouse': '🏭',
+  'showroom': '🏪',
+  'storage': '📦',
+  'store': '🏬',
+};
 
 export default function ProductAddForm({ visible, onClose, onSubmit, existingProduct }: ProductAddFormProps) {
   const { theme } = useTheme();
@@ -117,21 +107,34 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
   const [formData, setFormData] = useState<ProductFormData>({
     productName: '',
     productCode: '',
-    category: '',
+    categoryId: '',
     description: '',
     purchaseAmount: '',
     purchasePrice: '',
     sellingPrice: '',
     perMeterPrice: '',
-    lotNumber: '0',
-    supplier: '',
-    location: '',
+    lotNumber: '1',
+    supplierId: '',
+    locationId: '',
     minimumThreshold: '100',
     paymentStatus: 'pending',
     paidAmount: '',
     dueDate: '',
     productImage: null,
+    initialQuantity: '',
+    purchaseDate: new Date().toISOString().split('T')[0],
+    color: '',
+    material: '',
+    width: '',
+    weight: '',
+    unitOfMeasure: 'meter',
   });
+
+  // Database data
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [loadingData, setLoadingData] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showDropdowns, setShowDropdowns] = useState({
@@ -139,16 +142,45 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     supplier: false,
     location: false,
     paymentStatus: false,
+    unitOfMeasure: false,
   });
-  
+
   const [searchTexts, setSearchTexts] = useState({
     category: '',
     supplier: '',
     location: '',
   });
   const [currentStep, setCurrentStep] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
 
   const canAddProduct = hasPermission('products', 'add');
+
+  // Initial form state for resetting
+  const initialFormState: ProductFormData = {
+    productName: '',
+    productCode: '',
+    categoryId: '',
+    description: '',
+    purchaseAmount: '',
+    purchasePrice: '',
+    sellingPrice: '',
+    perMeterPrice: '',
+    lotNumber: '1',
+    supplierId: '',
+    locationId: '',
+    minimumThreshold: '100',
+    paymentStatus: 'pending',
+    paidAmount: '',
+    dueDate: '',
+    productImage: null,
+    initialQuantity: '',
+    purchaseDate: new Date().toISOString().split('T')[0],
+    color: '',
+    material: '',
+    width: '',
+    weight: '',
+    unitOfMeasure: 'meter',
+  };
 
   // Form steps for better UX
   const steps = [
@@ -158,6 +190,46 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     { title: 'Payment', icon: Calendar },
   ];
 
+  // Unit of measure options
+  const unitOfMeasureOptions = [
+    { id: 'meter', name: 'Meter' },
+    { id: 'piece', name: 'Piece' },
+    { id: 'roll', name: 'Roll' },
+    { id: 'yard', name: 'Yard' },
+    { id: 'kilogram', name: 'Kilogram' },
+  ];
+
+  const getUnitOfMeasureName = (id: string) => {
+    return unitOfMeasureOptions.find(unit => unit.id === id)?.name || 'Meter';
+  };
+
+  // Load database data
+  useEffect(() => {
+    if (visible) {
+      loadDatabaseData();
+    }
+  }, [visible]);
+
+  const loadDatabaseData = async () => {
+    try {
+      setLoadingData(true);
+      const [categoriesData, suppliersData, locationsData] = await Promise.all([
+        productService.getCategories(),
+        productService.getSuppliers(),
+        productService.getLocations(),
+      ]);
+
+      setCategories(categoriesData);
+      setSuppliers(suppliersData);
+      setLocations(locationsData);
+    } catch (error) {
+      console.error('Error loading form data:', error);
+      Alert.alert('Error', 'Failed to load form data. Please try again.');
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
   // Reset form when opening
   useEffect(() => {
     if (visible) {
@@ -165,24 +237,38 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
         setFormData({
           productName: '',
           productCode: '',
-          category: '',
+          categoryId: '',
           description: '',
           purchaseAmount: '',
           purchasePrice: '',
           sellingPrice: '',
           perMeterPrice: '',
-          lotNumber: '0',
-          supplier: '',
-          location: '',
+          lotNumber: '1',
+          supplierId: '',
+          locationId: '',
           minimumThreshold: '100',
           paymentStatus: 'pending',
           paidAmount: '',
           dueDate: '',
           productImage: null,
+          initialQuantity: '',
+          purchaseDate: new Date().toISOString().split('T')[0],
+          color: '',
+          material: '',
+          width: '',
+          weight: '',
+          unitOfMeasure: 'meter',
         });
       }
       setErrors({});
       setCurrentStep(0);
+      setShowDropdowns({
+        category: false,
+        supplier: false,
+        location: false,
+        paymentStatus: false,
+        unitOfMeasure: false,
+      });
     }
   }, [visible, existingProduct]);
 
@@ -240,10 +326,10 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
   }, [formData.purchasePrice, formData.sellingPrice]);
 
   const handlePerMeterPriceChange = (value: string) => {
-    setFormData(prev => ({ 
-      ...prev, 
+    setFormData(prev => ({
+      ...prev,
       perMeterPrice: value,
-      sellingPrice: value 
+      sellingPrice: value
     }));
   };
 
@@ -253,6 +339,7 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
       supplier: false,
       location: false,
       paymentStatus: false,
+      unitOfMeasure: false,
     });
   };
 
@@ -263,8 +350,8 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
       newErrors.productName = 'Product name is required';
     }
 
-    if (!formData.category) {
-      newErrors.category = 'Category is required';
+    if (!formData.categoryId) {
+      newErrors.categoryId = 'Category is required';
     }
 
     if (!formData.purchasePrice || parseFloat(formData.purchasePrice) <= 0) {
@@ -275,27 +362,116 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
       newErrors.sellingPrice = 'Valid selling price is required';
     }
 
-    if (!formData.supplier) {
-      newErrors.supplier = 'Supplier is required';
+    if (!formData.supplierId) {
+      newErrors.supplierId = 'Supplier is required';
     }
 
-    if (!formData.location) {
-      newErrors.location = 'Location is required';
+    if (!formData.locationId) {
+      newErrors.locationId = 'Location is required';
+    }
+
+    if (!formData.initialQuantity || parseFloat(formData.initialQuantity) <= 0) {
+      newErrors.initialQuantity = 'Valid initial quantity is required';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    console.log('=== PRODUCT FORM SUBMISSION STARTED ===');
+    console.log('Form data:', formData);
+
     if (!canAddProduct) {
+      console.log('Permission denied - cannot add product');
       Alert.alert('Permission Denied', 'You do not have permission to add products.');
       return;
     }
 
-    if (validateForm()) {
-      onSubmit(formData);
+    console.log('Validating form...');
+    if (!validateForm()) {
+      console.log('Form validation failed');
+      console.log('Validation errors:', errors);
+      return;
+    }
+    console.log('Form validation passed');
+
+    setIsLoading(true);
+    try {
+      const submitData: CreateProductRequest & { initial_quantity: number; purchase_date: string } = {
+        name: formData.productName,
+        product_code: formData.productCode || undefined,
+        category_id: formData.categoryId || undefined,
+        description: formData.description || undefined,
+        product_image: formData.productImage || undefined,
+        purchase_amount: formData.purchaseAmount ? parseFloat(formData.purchaseAmount) : undefined,
+        purchase_price: parseFloat(formData.purchasePrice),
+        selling_price: parseFloat(formData.sellingPrice),
+        per_meter_price: formData.perMeterPrice ? parseFloat(formData.perMeterPrice) : undefined,
+        supplier_id: formData.supplierId || undefined,
+        location_id: formData.locationId || undefined,
+        minimum_threshold: formData.minimumThreshold ? parseFloat(formData.minimumThreshold) : undefined,
+        payment_status: formData.paymentStatus,
+        paid_amount: formData.paidAmount ? parseFloat(formData.paidAmount) : undefined,
+        due_date: formData.dueDate || undefined,
+        unit_of_measure: formData.unitOfMeasure,
+        width: formData.width ? parseFloat(formData.width) : undefined,
+        weight: formData.weight ? parseFloat(formData.weight) : undefined,
+        color: formData.color || undefined,
+        material: formData.material || undefined,
+        notes: undefined,
+        lot_number: formData.lotNumber,
+        initial_quantity: parseFloat(formData.initialQuantity),
+        purchase_date: formData.purchaseDate,
+      };
+
+      console.log('=== SUBMITTING TO DATABASE ===');
+      console.log('Submit data:', submitData);
+      console.log('onSubmit function exists:', !!onSubmit);
+      console.log('onSubmit function type:', typeof onSubmit);
+
+      // Call the onSubmit prop which will handle the database operation
+      if (onSubmit) {
+        console.log('Calling onSubmit handler...');
+        try {
+          await onSubmit(submitData);
+          console.log('onSubmit completed successfully');
+        } catch (onSubmitError) {
+          console.error('ERROR in onSubmit handler:', onSubmitError);
+          throw onSubmitError; // Re-throw to be caught by outer catch
+        }
+      } else {
+        console.error('No submit handler provided');
+        throw new Error('No submit handler provided');
+      }
+
+      console.log('=== SUBMISSION SUCCESSFUL ===');
+      // Reset form and close modal
+      setFormData(initialFormState);
+      setErrors({});
+      setCurrentStep(0);
       onClose();
+    } catch (error) {
+      console.error('Error in form submission:', error);
+
+      // Type-safe error handling
+      if (error instanceof Error) {
+        console.error('Error stack:', error.stack);
+        console.error('Error details:', {
+          message: error.message,
+          name: error.name,
+          cause: error.cause
+        });
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      Alert.alert(
+        'Error',
+        `Failed to submit form: ${errorMessage}\n\nPlease check your internet connection and try again.`,
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -318,129 +494,168 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     onSelect: (item: any) => void,
     placeholder: string
   ) => {
-    const searchText = searchTexts[type];
-    const filteredItems = items.filter(item => 
-      (item.name || item.company || item).toLowerCase().includes(searchText.toLowerCase())
-    );
+    try {
+      const searchText = searchTexts[type] || '';
 
-    return (
-      <View style={styles.dropdownContainer}>
-        <View style={[
-          styles.searchInputContainer,
-          { borderColor: errors[type] ? theme.colors.status.error : theme.colors.primary + '30' },
-          showDropdowns[type] && styles.searchInputContainerActive,
-        ]}>
-          <TextInput
-            style={styles.searchInput}
-            value={showDropdowns[type] ? searchText : value}
-            onChangeText={(text) => {
-              setSearchTexts(prev => ({ ...prev, [type]: text }));
-              if (!showDropdowns[type]) {
+      // Debug logging
+      if (type === 'supplier') {
+        console.log('Supplier dropdown - items:', items);
+        console.log('Supplier dropdown - value:', value);
+        console.log('Supplier dropdown - searchText:', searchText);
+      }
+
+      const filteredItems = (items || []).filter(item => {
+        if (!item || typeof item !== 'object') return false;
+        const itemName = item?.name;
+        if (!itemName || typeof itemName !== 'string') return false;
+        return itemName.toLowerCase().includes(searchText.toLowerCase());
+      });
+
+      return (
+        <View style={styles.dropdownContainer}>
+          <View style={[
+            styles.searchInputContainer,
+            { borderColor: errors[type] ? theme.colors.status.error : theme.colors.primary + '30' },
+            showDropdowns[type] && styles.searchInputContainerActive,
+          ]}>
+            <TextInput
+              style={styles.searchInput}
+              value={showDropdowns[type] ? searchText : String(value || '')}
+              onChangeText={(text) => {
+                setSearchTexts(prev => ({ ...prev, [type]: text }));
+                if (!showDropdowns[type]) {
+                  const updatedDropdowns = {
+                    category: false,
+                    supplier: false,
+                    location: false,
+                    paymentStatus: false,
+                    unitOfMeasure: false,
+                  };
+                  setShowDropdowns({
+                    ...updatedDropdowns,
+                    [type]: true
+                  });
+                }
+              }}
+              onFocus={() => {
                 const updatedDropdowns = {
                   category: false,
                   supplier: false,
                   location: false,
                   paymentStatus: false,
+                  unitOfMeasure: false,
                 };
                 setShowDropdowns({
                   ...updatedDropdowns,
                   [type]: true
                 });
-              }
-            }}
-            onFocus={() => {
-              const updatedDropdowns = {
-                category: false,
-                supplier: false,
-                location: false,
-                paymentStatus: false,
-              };
-              setShowDropdowns({
-                ...updatedDropdowns,
-                [type]: true
-              });
-            }}
-            placeholder={value || placeholder}
-            placeholderTextColor={theme.colors.text.muted}
-          />
-          <TouchableOpacity
-            onPress={() => {
-              const updatedDropdowns = {
-                category: false,
-                supplier: false,
-                location: false,
-                paymentStatus: false,
-              };
-              setShowDropdowns({
-                ...updatedDropdowns,
-                [type]: !showDropdowns[type]
-              });
-            }}
-          >
-            <ChevronDown 
-              size={20} 
-              color={theme.colors.text.muted} 
-              style={[
-                styles.dropdownIcon,
-                showDropdowns[type] && { transform: [{ rotate: '180deg' }] }
-              ]}
+              }}
+              placeholder={String(value || placeholder || 'Search...')}
+              placeholderTextColor={theme.colors.text.muted}
             />
-          </TouchableOpacity>
-        </View>
-        
-        {showDropdowns[type] && (
-          <View 
-            style={[
-              styles.dropdownList,
-              { backgroundColor: theme.colors.background }
-            ]}
-          >
-            <ScrollView 
-              nestedScrollEnabled={true}
-              style={{ maxHeight: 200 }}
-              showsVerticalScrollIndicator={false}
-              bounces={true}
-              scrollEventThrottle={16}
-              decelerationRate="normal"
+            <TouchableOpacity
+              style={styles.dropdownIconContainer}
+              onPress={() => {
+                const updatedDropdowns = {
+                  category: false,
+                  supplier: false,
+                  location: false,
+                  paymentStatus: false,
+                  unitOfMeasure: false,
+                };
+                setShowDropdowns({
+                  ...updatedDropdowns,
+                  [type]: !showDropdowns[type]
+                });
+              }}
             >
-              {filteredItems.length > 0 ? filteredItems.map((item, index) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.dropdownItem,
-                    index === filteredItems.length - 1 && { borderBottomWidth: 0 }
-                  ]}
-                  onPress={() => {
-                    onSelect(item);
-                    setSearchTexts(prev => ({ ...prev, [type]: '' }));
-                    setShowDropdowns(prev => ({ ...prev, [type]: false }));
-                  }}
-                >
-                  <View style={styles.dropdownItemContent}>
-                    {item.icon && <Text style={styles.dropdownItemIcon}>{item.icon}</Text>}
-                    <View style={styles.dropdownItemTextContainer}>
-                      <Text style={styles.dropdownItemText}>
-                        {item.name || item.company || item}
-                      </Text>
-                      {item.rating && (
-                        <View style={styles.ratingContainer}>
-                          <Star size={12} color="#FFD700" fill="#FFD700" />
-                          <Text style={styles.ratingText}>{item.rating}</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              )) : (
-                <View style={styles.noResultsContainer}>
-                  <Text style={styles.noResultsText}>No results found</Text>
-                </View>
-              )}
-            </ScrollView>
+              <ChevronDown
+                size={20}
+                color={theme.colors.text.muted}
+                style={[
+                  styles.dropdownIcon,
+                  showDropdowns[type] && { transform: [{ rotate: '180deg' }] }
+                ]}
+              />
+            </TouchableOpacity>
           </View>
-        )}
-      </View>
-    );
+
+          {showDropdowns[type] && (
+            <View
+              style={[
+                styles.dropdownList,
+                { backgroundColor: theme.colors.background }
+              ]}
+            >
+              <ScrollView
+                nestedScrollEnabled={true}
+                style={{ maxHeight: 200 }}
+                showsVerticalScrollIndicator={false}
+                bounces={true}
+                scrollEventThrottle={16}
+                decelerationRate="normal"
+              >
+                {filteredItems.length > 0 ? filteredItems.map((item, index) => {
+                  if (!item || typeof item !== 'object') {
+                    console.warn('Invalid item in dropdown:', item);
+                    return null;
+                  }
+
+                  return (
+                    <TouchableOpacity
+                      key={String(item?.id || index)}
+                      style={[
+                        styles.dropdownItem,
+                        index === filteredItems.length - 1 && { borderBottomWidth: 0 }
+                      ]}
+                      onPress={() => {
+                        console.log('Dropdown item clicked:', type, item);
+                        if (item && typeof onSelect === 'function') {
+                          onSelect(item);
+                          setSearchTexts(prev => ({ ...prev, [type]: '' }));
+                          setShowDropdowns(prev => ({ ...prev, [type]: false }));
+                        }
+                      }}
+                    >
+                      <View style={styles.dropdownItemContent}>
+                        {(type === 'category' && item?.name && categoryIcons[item.name]) && (
+                          <Text style={styles.dropdownItemIcon}>{String(categoryIcons[item.name] || '')}</Text>
+                        )}
+                        {(type === 'location' && item?.location_type && locationIcons[item.location_type]) && (
+                          <Text style={styles.dropdownItemIcon}>{String(locationIcons[item.location_type] || '')}</Text>
+                        )}
+                        <View style={styles.dropdownItemTextContainer}>
+                          <Text style={styles.dropdownItemText}>
+                            {String(item?.name || 'Unknown')}
+                          </Text>
+                          {item?.rating && typeof item.rating !== 'undefined' && (
+                            <View style={styles.ratingContainer}>
+                              <Star size={12} color="#FFD700" fill="#FFD700" />
+                              <Text style={styles.ratingText}>{String(item.rating)}</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }) : (
+                  <View style={styles.noResultsContainer}>
+                    <Text style={styles.noResultsText}>No results found</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      );
+    } catch (error) {
+      console.error('Error in renderSearchableDropdown:', error);
+      return (
+        <View style={styles.dropdownContainer}>
+          <Text style={styles.errorText}>Error loading dropdown</Text>
+        </View>
+      );
+    }
   };
 
   const renderEnhancedDropdown = (
@@ -463,6 +678,7 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
             supplier: false,
             location: false,
             paymentStatus: false,
+            unitOfMeasure: false,
           };
           setShowDropdowns({
             ...updatedDropdowns,
@@ -474,26 +690,26 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
           styles.dropdownButtonText,
           { color: value ? theme.colors.text.primary : theme.colors.text.muted }
         ]}>
-          {value || placeholder}
+          {String(value || placeholder || 'Select option')}
         </Text>
-        <ChevronDown 
-          size={20} 
-          color={theme.colors.text.muted} 
+        <ChevronDown
+          size={20}
+          color={theme.colors.text.muted}
           style={[
             styles.dropdownIcon,
             showDropdowns[type] && { transform: [{ rotate: '180deg' }] }
           ]}
         />
       </TouchableOpacity>
-      
+
       {showDropdowns[type] && (
-        <View 
+        <View
           style={[
             styles.dropdownList,
             { backgroundColor: theme.colors.background }
           ]}
         >
-          <ScrollView 
+          <ScrollView
             nestedScrollEnabled={true}
             style={{ maxHeight: 200 }}
             showsVerticalScrollIndicator={false}
@@ -514,15 +730,15 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
                 }}
               >
                 <View style={styles.dropdownItemContent}>
-                  {item.icon && <Text style={styles.dropdownItemIcon}>{item.icon}</Text>}
+                  {item?.icon && <Text style={styles.dropdownItemIcon}>{String(item.icon)}</Text>}
                   <View style={styles.dropdownItemTextContainer}>
                     <Text style={styles.dropdownItemText}>
-                      {item.name || item.company || item}
+                      {String(typeof item === 'string' ? item : (item?.name || 'Unknown'))}
                     </Text>
-                    {item.rating && (
+                    {item?.rating && (
                       <View style={styles.ratingContainer}>
                         <Star size={12} color="#FFD700" fill="#FFD700" />
-                        <Text style={styles.ratingText}>{item.rating}</Text>
+                        <Text style={styles.ratingText}>{String(item.rating || '')}</Text>
                       </View>
                     )}
                   </View>
@@ -543,9 +759,9 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
             styles.stepCircle,
             index <= currentStep && styles.stepCircleActive
           ]}>
-            <step.icon 
-              size={16} 
-              color={index <= currentStep ? '#FFFFFF' : theme.colors.text.muted} 
+            <step.icon
+              size={16}
+              color={index <= currentStep ? '#FFFFFF' : theme.colors.text.muted}
             />
           </View>
           <Text style={[
@@ -584,9 +800,10 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     <View style={styles.stepContent}>
       {/* Product Image */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <Sparkles size={18} color={theme.colors.primary} /> Product Image
-        </Text>
+        <View style={styles.sectionTitleContainer}>
+          <Sparkles size={18} color={theme.colors.primary} />
+          <Text style={styles.sectionTitle}>Product Image</Text>
+        </View>
         <TouchableOpacity style={styles.imageUploadContainer} onPress={handleImagePicker}>
           <View style={styles.imageUploadContent}>
             <View style={styles.imageUploadIcon}>
@@ -604,10 +821,11 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
 
       {/* Basic Information */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <Package size={18} color={theme.colors.primary} /> Basic Information
-        </Text>
-        
+        <View style={styles.sectionTitleContainer}>
+          <Package size={18} color={theme.colors.primary} />
+          <Text style={styles.sectionTitle}>Basic Information</Text>
+        </View>
+
         <View style={styles.inputGroup}>
           <Text style={[styles.label, styles.requiredLabel]}>Product Name *</Text>
           <TextInput
@@ -631,17 +849,17 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
               placeholderTextColor={theme.colors.text.muted}
             />
           </View>
-          
+
           <View style={[styles.inputGroup, styles.flex1]}>
             <Text style={[styles.label, styles.requiredLabel]}>Category *</Text>
             {renderSearchableDropdown(
               'category',
               categories,
-              formData.category,
-              (item) => setFormData(prev => ({ ...prev, category: item.name })),
+              String(categories.find(c => c.id === formData.categoryId)?.name || ''),
+              (item) => setFormData(prev => ({ ...prev, categoryId: item.id })),
               'Search or select category'
             )}
-            {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
+            {errors.categoryId && <Text style={styles.errorText}>{errors.categoryId}</Text>}
           </View>
         </View>
 
@@ -663,20 +881,36 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
   const renderPricingStep = () => (
     <View style={styles.stepContent}>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <DollarSign size={18} color={theme.colors.primary} /> Pricing Information
-        </Text>
-        
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Purchase Amount</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.purchaseAmount}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, purchaseAmount: text }))}
-            placeholder="Total purchase amount"
-            placeholderTextColor={theme.colors.text.muted}
-            keyboardType="numeric"
-          />
+        <View style={styles.sectionTitleContainer}>
+          <DollarSign size={18} color={theme.colors.primary} />
+          <Text style={styles.sectionTitle}>Pricing Information</Text>
+        </View>
+
+        <View style={styles.row}>
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>Purchase Amount</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.purchaseAmount}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, purchaseAmount: text }))}
+              placeholder="Total purchase amount"
+              placeholderTextColor={theme.colors.text.muted}
+              keyboardType="numeric"
+            />
+          </View>
+
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={[styles.label, styles.requiredLabel]}>Initial Quantity *</Text>
+            <TextInput
+              style={[styles.input, errors.initialQuantity && styles.inputError]}
+              value={formData.initialQuantity}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, initialQuantity: text }))}
+              placeholder="0"
+              placeholderTextColor={theme.colors.text.muted}
+              keyboardType="numeric"
+            />
+            {errors.initialQuantity && <Text style={styles.errorText}>{errors.initialQuantity}</Text>}
+          </View>
         </View>
 
         <View style={styles.row}>
@@ -692,7 +926,7 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
             />
             {errors.purchasePrice && <Text style={styles.errorText}>{errors.purchasePrice}</Text>}
           </View>
-          
+
           <View style={[styles.inputGroup, styles.flex1]}>
             <Text style={[styles.label, styles.requiredLabel]}>Selling Price *</Text>
             <TextInput
@@ -707,16 +941,29 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
           </View>
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Per Meter Price</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.perMeterPrice}
-            onChangeText={handlePerMeterPriceChange}
-            placeholder="Auto-calculated"
-            placeholderTextColor={theme.colors.text.muted}
-            keyboardType="numeric"
-          />
+        <View style={styles.row}>
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>Per Meter Price</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.perMeterPrice}
+              onChangeText={handlePerMeterPriceChange}
+              placeholder="Auto-calculated"
+              placeholderTextColor={theme.colors.text.muted}
+              keyboardType="numeric"
+            />
+          </View>
+
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>Unit of Measure</Text>
+            {renderEnhancedDropdown(
+              'unitOfMeasure',
+              unitOfMeasureOptions,
+              getUnitOfMeasureName(formData.unitOfMeasure),
+              (item) => setFormData(prev => ({ ...prev, unitOfMeasure: item.id as any })),
+              'Select unit'
+            )}
+          </View>
         </View>
       </View>
     </View>
@@ -725,10 +972,11 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
   const renderInventoryStep = () => (
     <View style={styles.stepContent}>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <MapPin size={18} color={theme.colors.primary} /> Inventory Information
-        </Text>
-        
+        <View style={styles.sectionTitleContainer}>
+          <MapPin size={18} color={theme.colors.primary} />
+          <Text style={styles.sectionTitle}>Inventory Information</Text>
+        </View>
+
         <View style={styles.row}>
           <View style={[styles.inputGroup, styles.flex1]}>
             <Text style={styles.label}>Lot Number</Text>
@@ -741,7 +989,7 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
               keyboardType="numeric"
             />
           </View>
-          
+
           <View style={[styles.inputGroup, styles.flex1]}>
             <Text style={styles.label}>Minimum Threshold</Text>
             <TextInput
@@ -758,26 +1006,158 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
         <View style={styles.row}>
           <View style={[styles.inputGroup, styles.flex1]}>
             <Text style={[styles.label, styles.requiredLabel]}>Supplier *</Text>
-            {renderSearchableDropdown(
-              'supplier',
-              suppliers,
-              formData.supplier,
-              (item) => setFormData(prev => ({ ...prev, supplier: item.company })),
-              'Search or select supplier'
-            )}
-            {errors.supplier && <Text style={styles.errorText}>{errors.supplier}</Text>}
+            {/* Simple safe supplier dropdown */}
+            <View style={styles.dropdownContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.dropdownButton,
+                  { borderColor: errors.supplierId ? theme.colors.status.error : theme.colors.primary + '30' },
+                  showDropdowns.supplier && styles.dropdownButtonActive,
+                ]}
+                onPress={() => {
+                  setShowDropdowns(prev => ({
+                    category: false,
+                    supplier: !prev.supplier,
+                    location: false,
+                    paymentStatus: false,
+                    unitOfMeasure: false,
+                  }));
+                }}
+              >
+                <Text style={[
+                  styles.dropdownButtonText,
+                  { color: formData.supplierId ? theme.colors.text.primary : theme.colors.text.muted }
+                ]}>
+                  {formData.supplierId
+                    ? (suppliers?.find(s => s?.id === formData.supplierId)?.name || 'Unknown Supplier')
+                    : 'Search or select supplier'
+                  }
+                </Text>
+                <ChevronDown
+                  size={20}
+                  color={theme.colors.text.muted}
+                  style={[
+                    styles.dropdownIcon,
+                    showDropdowns.supplier && { transform: [{ rotate: '180deg' }] }
+                  ]}
+                />
+              </TouchableOpacity>
+
+              {showDropdowns.supplier && (
+                <View style={[styles.dropdownList, { backgroundColor: theme.colors.background }]}>
+                  <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
+                    {(suppliers || []).map((supplier, index) => (
+                      <TouchableOpacity
+                        key={supplier?.id || index}
+                        style={[
+                          styles.dropdownItem,
+                          index === suppliers.length - 1 && { borderBottomWidth: 0 }
+                        ]}
+                        onPress={() => {
+                          setFormData(prev => ({ ...prev, supplierId: supplier?.id || '' }));
+                          setShowDropdowns(prev => ({ ...prev, supplier: false }));
+                        }}
+                      >
+                        <View style={styles.dropdownItemContent}>
+                          <View style={styles.dropdownItemTextContainer}>
+                            <Text style={styles.dropdownItemText}>
+                              {supplier?.name || 'Unknown Supplier'}
+                            </Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+            {errors.supplierId && <Text style={styles.errorText}>{errors.supplierId}</Text>}
           </View>
-          
+
           <View style={[styles.inputGroup, styles.flex1]}>
             <Text style={[styles.label, styles.requiredLabel]}>Location *</Text>
             {renderSearchableDropdown(
               'location',
               locations,
-              formData.location,
-              (item) => setFormData(prev => ({ ...prev, location: item.name })),
+              String(locations.find(l => l.id === formData.locationId)?.name || ''),
+              (item) => setFormData(prev => ({ ...prev, locationId: item.id })),
               'Search or select location'
             )}
-            {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
+            {errors.locationId && <Text style={styles.errorText}>{errors.locationId}</Text>}
+          </View>
+        </View>
+
+        <View style={styles.row}>
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>Purchase Date</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.purchaseDate}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, purchaseDate: text }))}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={theme.colors.text.muted}
+            />
+          </View>
+
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>Lot Number</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.lotNumber}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, lotNumber: text }))}
+              placeholder="1"
+              placeholderTextColor={theme.colors.text.muted}
+            />
+          </View>
+        </View>
+
+        <View style={styles.row}>
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>Color</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.color}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, color: text }))}
+              placeholder="Product color"
+              placeholderTextColor={theme.colors.text.muted}
+            />
+          </View>
+
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>Material</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.material}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, material: text }))}
+              placeholder="Material type"
+              placeholderTextColor={theme.colors.text.muted}
+            />
+          </View>
+        </View>
+
+        <View style={styles.row}>
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>Width (cm)</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.width}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, width: text }))}
+              placeholder="0"
+              placeholderTextColor={theme.colors.text.muted}
+              keyboardType="numeric"
+            />
+          </View>
+
+          <View style={[styles.inputGroup, styles.flex1]}>
+            <Text style={styles.label}>Weight (kg)</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.weight}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, weight: text }))}
+              placeholder="0"
+              placeholderTextColor={theme.colors.text.muted}
+              keyboardType="numeric"
+            />
           </View>
         </View>
       </View>
@@ -787,10 +1167,11 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
   const renderPaymentStep = () => (
     <View style={styles.stepContent}>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <Calendar size={18} color={theme.colors.primary} /> Payment Information
-        </Text>
-        
+        <View style={styles.sectionTitleContainer}>
+          <Calendar size={18} color={theme.colors.primary} />
+          <Text style={styles.sectionTitle}>Payment Information</Text>
+        </View>
+
         <View style={styles.paymentSection}>
           <Text style={styles.label}>Payment Status</Text>
           <View style={styles.paymentStatusButtons}>
@@ -803,7 +1184,7 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
                 key={status.key}
                 style={[
                   styles.paymentStatusButton,
-                  formData.paymentStatus === status.key && { 
+                  formData.paymentStatus === status.key && {
                     backgroundColor: status.color + '20',
                     borderColor: status.color,
                   },
@@ -834,7 +1215,7 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
                   keyboardType="numeric"
                 />
               </View>
-              
+
               <View style={[styles.inputGroup, styles.flex1]}>
                 <Text style={styles.label}>Due Date</Text>
                 <TextInput
@@ -956,13 +1337,16 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     section: {
       marginBottom: 24,
     },
+    sectionTitleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+      gap: 8,
+    },
     sectionTitle: {
       fontSize: 18,
       fontWeight: '700',
       color: theme.colors.text.primary,
-      marginBottom: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
       letterSpacing: 0.3,
     },
     imageUploadContainer: {
@@ -1106,6 +1490,11 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     },
     dropdownIcon: {
       marginLeft: 8,
+    },
+    dropdownIconContainer: {
+      padding: 4,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     dropdownList: {
       position: 'absolute',
@@ -1285,8 +1674,8 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
                 {renderStepIndicator()}
 
                 {/* Content */}
-                <ScrollView 
-                  style={styles.content} 
+                <ScrollView
+                  style={styles.content}
                   showsVerticalScrollIndicator={false}
                   contentContainerStyle={{ paddingBottom: 20 }}
                   bounces={true}
@@ -1299,34 +1688,37 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
                 {/* Footer */}
                 <View style={styles.footer}>
                   {currentStep > 0 ? (
-                    <TouchableOpacity 
-                      style={[styles.button, styles.backButton]} 
+                    <TouchableOpacity
+                      style={[styles.button, styles.backButton]}
                       onPress={() => setCurrentStep(prev => prev - 1)}
                     >
                       <Text style={styles.backButtonText}>← Back</Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity 
-                      style={[styles.button, styles.backButton]} 
+                    <TouchableOpacity
+                      style={[styles.button, styles.backButton]}
                       onPress={onClose}
                     >
                       <Text style={styles.backButtonText}>Cancel</Text>
                     </TouchableOpacity>
                   )}
-                  
+
                   {currentStep < steps.length - 1 ? (
-                    <TouchableOpacity 
-                      style={[styles.button, styles.nextButton]} 
+                    <TouchableOpacity
+                      style={[styles.button, styles.nextButton]}
                       onPress={() => setCurrentStep(prev => prev + 1)}
                     >
                       <Text style={styles.nextButtonText}>Next →</Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity 
-                      style={[styles.button, styles.submitButton]} 
+                    <TouchableOpacity
+                      style={[styles.button, styles.submitButton]}
                       onPress={handleSubmit}
+                      disabled={isLoading}
                     >
-                      <Text style={styles.submitButtonText}>🚀 Add Product</Text>
+                      <Text style={styles.submitButtonText}>
+                        {isLoading ? '⏳ Adding...' : '🚀 Add Product'}
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </View>

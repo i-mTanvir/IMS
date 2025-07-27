@@ -1,0 +1,7 @@
+-- TEMPORARY: Disable RLS for testing
+-- WARNING: Only use this for development/testing!
+
+ALTER TABLE products DISABLE ROW LEVEL SECURITY;
+ALTER TABLE stock_items DISABLE ROW LEVEL SECURITY;
+ALTER TABLE product_lots DISABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_movements DISABLE ROW LEVEL SECURITY;

@@ -1011,63 +1011,14 @@ Product management accessible by Super Admin and Admin. Implements FIFO (First I
 ### Schema:
 
 ```sql
-CREATE TABLE Products (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    product_name VARCHAR(255) NOT NULL,
-    product_code VARCHAR(100) UNIQUE NOT NULL,
-    SKU VARCHAR(100) UNIQUE NOT NULL,
-    category_id INT,
-    description TEXT,
-    barcode VARCHAR(100),
-    unit_of_measure ENUM('meter', 'piece', 'roll', 'yard') DEFAULT 'meter',
-    purchase_amount DECIMAL(10,2),
-    purchase_price DECIMAL(10,2),
-    selling_price DECIMAL(10,2),
-    per_meter_price DECIMAL(10,2),
-    current_stock DECIMAL(10,2) DEFAULT 0,
-    minimum_threshold DECIMAL(10,2) DEFAULT 100,
-    reorder_point DECIMAL(10,2) DEFAULT 50,
-    width DECIMAL(10,2),
-    weight DECIMAL(10,2),
-    color VARCHAR(50),
-    pattern VARCHAR(100),
-    material VARCHAR(100),
-    supplier_id INT,
-    location_id INT,
-    payment_status ENUM('paid', 'partial', 'pending') DEFAULT 'pending',
-    payment_amount DECIMAL(10,2),
-    payment_due_date DATE,
-    product_status ENUM('active', 'inactive') DEFAULT 'active',
-    wastage_amount DECIMAL(10,2) DEFAULT 0,
-    product_image VARCHAR(500),
-    notes TEXT,
-    added_by INT, -- User ID who added the product
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (category_id) REFERENCES Category(id),
-    FOREIGN KEY (supplier_id) REFERENCES Suppliers(id),
-    FOREIGN KEY (location_id) REFERENCES Locations(id),
-    FOREIGN KEY (added_by) REFERENCES User(id)
-);
+-- Products table removed for clean implementation
+-- Will be redesigned and implemented from scratch
 ```
 
 
-## Table 7: Product_Lots
+## Table 7: Product_Lots - REMOVED
 
-### Description:
-
-Dedicated table for FIFO lot tracking system. Each product purchase creates a new lot with specific purchase details.
-
-### Schema:
-
-```sql
-CREATE TABLE Product_Lots (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    product_id INT NOT NULL,
-    lot_number INT NOT NULL,
-    purchase_date DATE NOT NULL,
-    expiry_date DATE,
-    initial_quantity DECIMAL(10,2) NOT NULL,
+Product lots table removed for clean implementation. Will be redesigned and implemented from scratch.
     current_quantity DECIMAL(10,2) NOT NULL,
     purchase_price DECIMAL(10,2) NOT NULL,
     supplier_id INT,

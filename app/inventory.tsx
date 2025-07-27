@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -34,280 +34,94 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
+import { inventoryService, StockItem, Location, Transfer, InventoryFilters } from '@/lib/database/inventory-service';
 
-// Interfaces
-interface Location {
-  id: string;
-  name: string;
-  code: string;
-  type: 'warehouse' | 'showroom';
-  address: string;
-  capacity: number;
-  currentStock: number;
-  manager: string;
-  phone: string;
-  isActive: boolean;
-  createdDate: Date;
-}
+// Interfaces are now imported from inventory-service
 
-interface StockItem {
-  id: string;
-  productId: string;
-  productName: string;
-  productCode: string;
-  locationId: string;
-  locationName: string;
-  locationType: 'warehouse' | 'showroom';
-  quantity: number;
-  reservedQuantity: number;
-  availableQuantity: number;
-  minimumThreshold: number;
-  maximumCapacity: number;
-  lastUpdated: Date;
-  status: 'In Stock' | 'Low Stock' | 'Out of Stock' | 'Transfer in Progress' | 'Reserved';
-}
-
-interface StockTransfer {
-  id: string;
-  transferNumber: string;
-  productId: string;
-  productName: string;
-  fromLocationId: string;
-  fromLocationName: string;
-  toLocationId: string;
-  toLocationName: string;
-  quantity: number;
-  reason: string;
-  status: 'Pending' | 'Approved' | 'In Transit' | 'Completed' | 'Cancelled';
-  requestedBy: string;
-  approvedBy?: string;
-  requestDate: Date;
-  approvedDate?: Date;
-  completedDate?: Date;
-  notes?: string;
-}
-
-interface InventoryFilters {
-  search?: string;
-  location?: string;
-  locationType?: 'warehouse' | 'showroom';
-  status?: string;
-  lowStockOnly?: boolean;
-}
-
-// Mock data
-const mockLocations: Location[] = [
-  {
-    id: '1',
-    name: 'Main Warehouse',
-    code: 'WH001',
-    type: 'warehouse',
-    address: 'Dhaka Industrial Area, Bangladesh',
-    capacity: 10000,
-    currentStock: 7500,
-    manager: 'Ahmed Rahman',
-    phone: '+880-1234-567890',
-    isActive: true,
-    createdDate: new Date('2024-01-01'),
-  },
-  {
-    id: '2',
-    name: 'Gulshan Showroom',
-    code: 'SR001',
-    type: 'showroom',
-    address: 'Gulshan Avenue, Dhaka',
-    capacity: 2000,
-    currentStock: 1800,
-    manager: 'Fatima Khan',
-    phone: '+880-1234-567891',
-    isActive: true,
-    createdDate: new Date('2024-01-15'),
-  },
-  {
-    id: '3',
-    name: 'Dhanmondi Showroom',
-    code: 'SR002',
-    type: 'showroom',
-    address: 'Dhanmondi Road 27, Dhaka',
-    capacity: 1500,
-    currentStock: 1200,
-    manager: 'Karim Hassan',
-    phone: '+880-1234-567892',
-    isActive: true,
-    createdDate: new Date('2024-02-01'),
-  },
-  {
-    id: '4',
-    name: 'Chittagong Warehouse',
-    code: 'WH002',
-    type: 'warehouse',
-    address: 'Chittagong Port Area',
-    capacity: 8000,
-    currentStock: 5200,
-    manager: 'Nasir Ahmed',
-    phone: '+880-1234-567893',
-    isActive: true,
-    createdDate: new Date('2024-02-15'),
-  },
-];
-
-const mockStockItems: StockItem[] = [
-  {
-    id: '1',
-    productId: '1',
-    productName: 'Premium Velvet Sofa Fabric',
-    productCode: '#LWIL02012',
-    locationId: '1',
-    locationName: 'Main Warehouse',
-    locationType: 'warehouse',
-    quantity: 450,
-    reservedQuantity: 50,
-    availableQuantity: 400,
-    minimumThreshold: 100,
-    maximumCapacity: 500,
-    lastUpdated: new Date(),
-    status: 'In Stock',
-  },
-  {
-    id: '2',
-    productName: 'Silk Curtain Material',
-    productId: '2',
-    productCode: '#LWIL02013',
-    locationId: '2',
-    locationName: 'Gulshan Showroom',
-    locationType: 'showroom',
-    quantity: 25,
-    reservedQuantity: 5,
-    availableQuantity: 20,
-    minimumThreshold: 30,
-    maximumCapacity: 100,
-    lastUpdated: new Date(),
-    status: 'Low Stock',
-  },
-  {
-    id: '3',
-    productName: 'Leather Upholstery',
-    productId: '3',
-    productCode: '#LWIL02014',
-    locationId: '3',
-    locationName: 'Dhanmondi Showroom',
-    locationType: 'showroom',
-    quantity: 0,
-    reservedQuantity: 0,
-    availableQuantity: 0,
-    minimumThreshold: 20,
-    maximumCapacity: 80,
-    lastUpdated: new Date(),
-    status: 'Out of Stock',
-  },
-  {
-    id: '4',
-    productName: 'Cotton Blend Fabric',
-    productId: '4',
-    productCode: '#LWIL02015',
-    locationId: '4',
-    locationName: 'Chittagong Warehouse',
-    locationType: 'warehouse',
-    quantity: 320,
-    reservedQuantity: 20,
-    availableQuantity: 300,
-    minimumThreshold: 50,
-    maximumCapacity: 400,
-    lastUpdated: new Date(),
-    status: 'In Stock',
-  },
-  {
-    id: '5',
-    productName: 'Decorative Curtain Fabric',
-    productId: '5',
-    productCode: '#LWIL02016',
-    locationId: '1',
-    locationName: 'Main Warehouse',
-    locationType: 'warehouse',
-    quantity: 180,
-    reservedQuantity: 30,
-    availableQuantity: 150,
-    minimumThreshold: 80,
-    maximumCapacity: 200,
-    lastUpdated: new Date(),
-    status: 'In Stock',
-  },
-];
-
-const mockTransfers: StockTransfer[] = [
-  {
-    id: '1',
-    transferNumber: 'TRF-2025-001',
-    productId: '1',
-    productName: 'Premium Velvet Sofa Fabric',
-    fromLocationId: '1',
-    fromLocationName: 'Main Warehouse',
-    toLocationId: '2',
-    toLocationName: 'Gulshan Showroom',
-    quantity: 50,
-    reason: 'Showroom stock replenishment',
-    status: 'In Transit',
-    requestedBy: 'Fatima Khan',
-    approvedBy: 'Ahmed Rahman',
-    requestDate: new Date('2025-01-08'),
-    approvedDate: new Date('2025-01-08'),
-    notes: 'Urgent transfer for customer display',
-  },
-  {
-    id: '2',
-    transferNumber: 'TRF-2025-002',
-    productId: '2',
-    productName: 'Silk Curtain Material',
-    fromLocationId: '4',
-    fromLocationName: 'Chittagong Warehouse',
-    toLocationId: '3',
-    toLocationName: 'Dhanmondi Showroom',
-    quantity: 30,
-    reason: 'New product introduction',
-    status: 'Pending',
-    requestedBy: 'Karim Hassan',
-    requestDate: new Date('2025-01-09'),
-    notes: 'Waiting for approval',
-  },
-];
+// Mock data removed - now using real database data
 
 export default function InventoryPage() {
   const { theme } = useTheme();
   const { user, hasPermission } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'stock' | 'locations' | 'transfers'>('stock');
-  const [stockItems] = useState<StockItem[]>(mockStockItems);
-  const [locations] = useState<Location[]>(mockLocations);
-  const [transfers] = useState<StockTransfer[]>(mockTransfers);
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [filters, setFilters] = useState<InventoryFilters>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalStockItems: 0,
+    lowStockItems: 0,
+    pendingTransfers: 0,
+    averageUtilization: 0
+  });
 
-  const filteredStockItems = useMemo(() => {
-    return stockItems.filter(item => {
-      if (filters.search && 
-          !item.productName.toLowerCase().includes(filters.search.toLowerCase()) && 
-          !item.productCode.toLowerCase().includes(filters.search.toLowerCase())) {
-        return false;
-      }
-      if (filters.location && item.locationId !== filters.location) {
-        return false;
-      }
-      if (filters.locationType && item.locationType !== filters.locationType) {
-        return false;
-      }
-      if (filters.status && item.status !== filters.status) {
-        return false;
-      }
-      if (filters.lowStockOnly && item.status !== 'Low Stock') {
-        return false;
-      }
-      return true;
-    });
-  }, [stockItems, filters]);
+  // Load data on component mount
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const onRefresh = () => {
+  // Reload data when active tab changes
+  useEffect(() => {
+    if (!loading) {
+      loadTabData();
+    }
+  }, [activeTab]);
+
+  // Reload data when filters change
+  useEffect(() => {
+    if (!loading) {
+      loadTabData();
+    }
+  }, [filters]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [statsData, locationsData] = await Promise.all([
+        inventoryService.getInventoryStats(),
+        inventoryService.getLocations()
+      ]);
+      
+      setStats(statsData);
+      setLocations(locationsData);
+      
+      // Load initial tab data
+      await loadTabData();
+    } catch (error) {
+      console.error('Error loading inventory data:', error);
+      Alert.alert('Error', 'Failed to load inventory data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTabData = async () => {
+    try {
+      switch (activeTab) {
+        case 'stock':
+          const stockData = await inventoryService.getStockItems(filters);
+          setStockItems(stockData);
+          break;
+        case 'transfers':
+          const transferData = await inventoryService.getTransfers();
+          setTransfers(transferData);
+          break;
+        case 'locations':
+          // Locations are already loaded
+          break;
+      }
+    } catch (error) {
+      console.error('Error loading tab data:', error);
+    }
+  };
+
+  const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    await loadData();
+    setRefreshing(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -342,31 +156,49 @@ export default function InventoryPage() {
     }
   };
 
-  const handleAction = (action: string, item: any) => {
+  const handleAction = async (action: string, item: any) => {
     switch (action) {
       case 'view':
-        Alert.alert('View Details', `Viewing details for ${item.productName || item.name || item.transferNumber}`);
+        Alert.alert('View Details', `Viewing details for ${item.product_name || item.name || item.transfer_number}`);
         break;
       case 'edit':
         if (!hasPermission('inventory', 'edit')) {
           Alert.alert('Permission Denied', 'You do not have permission to edit inventory.');
           return;
         }
-        Alert.alert('Edit Item', `Editing ${item.productName || item.name || item.transferNumber}`);
+        Alert.alert('Edit Item', `Editing ${item.product_name || item.name || item.transfer_number}`);
         break;
       case 'transfer':
         if (!hasPermission('inventory', 'transfer')) {
           Alert.alert('Permission Denied', 'You do not have permission to transfer stock.');
           return;
         }
-        Alert.alert('Transfer Stock', `Initiating transfer for ${item.productName}`);
+        Alert.alert('Transfer Stock', `Initiating transfer for ${item.product_name}`);
         break;
       case 'approve':
         if (!hasPermission('inventory', 'edit')) {
           Alert.alert('Permission Denied', 'You do not have permission to approve transfers.');
           return;
         }
-        Alert.alert('Approve Transfer', `Approving transfer ${item.transferNumber}`);
+        Alert.alert(
+          'Approve Transfer',
+          `Approve transfer of ${item.requested_quantity} units of ${item.product_name}?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Approve',
+              onPress: async () => {
+                try {
+                  await inventoryService.approveTransfer(item.id, item.requested_quantity);
+                  Alert.alert('Success', 'Transfer approved successfully');
+                  loadTabData(); // Refresh the data
+                } catch (error) {
+                  Alert.alert('Error', 'Failed to approve transfer');
+                }
+              }
+            }
+          ]
+        );
         break;
     }
   };
@@ -374,37 +206,45 @@ export default function InventoryPage() {
   const renderKPICards = () => (
     <View style={styles.kpiContainer}>
       <View style={styles.kpiRow}>
-        <View style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+        <View key="total-stock" style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.primary + '20' }]}>
             <Package size={24} color={theme.colors.primary} />
           </View>
-          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>2,847</Text>
+          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>
+            {loading ? '...' : stats.totalStockItems.toLocaleString()}
+          </Text>
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Total Stock Items</Text>
         </View>
         
-        <View style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+        <View key="low-stock" style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.warning + '20' }]}>
             <AlertTriangle size={24} color={theme.colors.status.warning} />
           </View>
-          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>23</Text>
+          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>
+            {loading ? '...' : stats.lowStockItems.toLocaleString()}
+          </Text>
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Low Stock Items</Text>
         </View>
       </View>
       
       <View style={styles.kpiRow}>
-        <View style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+        <View key="pending-transfers" style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.info + '20' }]}>
             <ArrowRightLeft size={24} color={theme.colors.status.info} />
           </View>
-          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>12</Text>
+          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>
+            {loading ? '...' : stats.pendingTransfers.toLocaleString()}
+          </Text>
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Pending Transfers</Text>
         </View>
         
-        <View style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+        <View key="utilization" style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.success + '20' }]}>
             <TrendingUp size={24} color={theme.colors.status.success} />
           </View>
-          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>87%</Text>
+          <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>
+            {loading ? '...' : `${stats.averageUtilization}%`}
+          </Text>
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Avg. Utilization</Text>
         </View>
       </View>
@@ -455,22 +295,30 @@ export default function InventoryPage() {
   );
 
   const renderStockItem = ({ item }: { item: StockItem }) => {
-    const StatusIcon = getStatusIcon(item.status);
-    
+    const getStockStatus = () => {
+      if (item.current_quantity <= 0) return 'Out of Stock';
+      if (item.current_quantity <= item.minimum_threshold) return 'Low Stock';
+      if (item.reserved_quantity > 0) return 'Reserved';
+      return 'In Stock';
+    };
+
+    const stockStatus = getStockStatus();
+    const StatusIcon = getStatusIcon(stockStatus);
+
     return (
       <View style={[styles.itemCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
         <View style={styles.itemHeader}>
           <View style={styles.itemInfo}>
-            <Text style={[styles.itemName, { color: theme.colors.text.primary }]} numberOfLines={2}>
-              {item.productName}
+            <Text style={[styles.itemName, { color: theme.colors.text.primary }]}>
+              {item.product_name || 'Unknown Product'}
             </Text>
             <Text style={[styles.itemCode, { color: theme.colors.text.secondary }]}>
-              {item.productCode}
+              {item.product_code} • Lot: {item.lot_number}
             </Text>
             <View style={styles.statusContainer}>
-              <StatusIcon size={12} color={getStatusColor(item.status)} />
-              <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                {item.status}
+              <StatusIcon size={12} color={getStatusColor(stockStatus)} />
+              <Text style={[styles.statusText, { color: getStatusColor(stockStatus) }]}>
+                {stockStatus}
               </Text>
             </View>
           </View>
@@ -480,28 +328,56 @@ export default function InventoryPage() {
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Location:</Text>
             <View style={styles.locationContainer}>
-              {item.locationType === 'warehouse' ? 
+              {item.location_type === 'warehouse' ? 
                 <Warehouse size={12} color={theme.colors.primary} /> :
                 <Store size={12} color={theme.colors.status.info} />
               }
               <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
-                {item.locationName}
+                {item.location_name}
               </Text>
             </View>
           </View>
           
+          <View style={styles.detailRow}>
+            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Purchase Date:</Text>
+            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
+              {new Date(item.purchase_date).toLocaleDateString()}
+            </Text>
+          </View>
+
+          {item.expiry_date && (
+            <View style={styles.detailRow}>
+              <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Expiry Date:</Text>
+              <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
+                {new Date(item.expiry_date).toLocaleDateString()}
+              </Text>
+            </View>
+          )}
+          
           <View style={styles.stockInfo}>
-            <View style={styles.stockItem}>
+            <View key="current" style={styles.stockItem}>
+              <Text style={[styles.stockLabel, { color: theme.colors.text.secondary }]}>Current</Text>
+              <Text style={[styles.stockValue, { color: theme.colors.text.primary }]}>
+                {item.current_quantity}
+              </Text>
+            </View>
+            <View key="available" style={styles.stockItem}>
               <Text style={[styles.stockLabel, { color: theme.colors.text.secondary }]}>Available</Text>
-              <Text style={[styles.stockValue, { color: theme.colors.primary }]}>{item.availableQuantity}</Text>
+              <Text style={[styles.stockValue, { color: theme.colors.status.success }]}>
+                {item.available_quantity}
+              </Text>
             </View>
-            <View style={styles.stockItem}>
+            <View key="reserved" style={styles.stockItem}>
               <Text style={[styles.stockLabel, { color: theme.colors.text.secondary }]}>Reserved</Text>
-              <Text style={[styles.stockValue, { color: theme.colors.status.warning }]}>{item.reservedQuantity}</Text>
+              <Text style={[styles.stockValue, { color: theme.colors.status.warning }]}>
+                {item.reserved_quantity}
+              </Text>
             </View>
-            <View style={styles.stockItem}>
-              <Text style={[styles.stockLabel, { color: theme.colors.text.secondary }]}>Total</Text>
-              <Text style={[styles.stockValue, { color: theme.colors.text.primary }]}>{item.quantity}</Text>
+            <View key="threshold" style={styles.stockItem}>
+              <Text style={[styles.stockLabel, { color: theme.colors.text.secondary }]}>Min. Threshold</Text>
+              <Text style={[styles.stockValue, { color: theme.colors.status.error }]}>
+                {item.minimum_threshold}
+              </Text>
             </View>
           </View>
         </View>
@@ -514,15 +390,6 @@ export default function InventoryPage() {
             <Eye size={16} color={theme.colors.status.info} />
           </TouchableOpacity>
           
-          {hasPermission('inventory', 'edit') && (
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: theme.colors.status.warning + '20' }]}
-              onPress={() => handleAction('edit', item)}
-            >
-              <Edit size={16} color={theme.colors.status.warning} />
-            </TouchableOpacity>
-          )}
-          
           {hasPermission('inventory', 'transfer') && (
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: theme.colors.primary + '20' }]}
@@ -531,13 +398,22 @@ export default function InventoryPage() {
               <ArrowRightLeft size={16} color={theme.colors.primary} />
             </TouchableOpacity>
           )}
+          
+          {hasPermission('inventory', 'edit') && (
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: theme.colors.status.warning + '20' }]}
+              onPress={() => handleAction('edit', item)}
+            >
+              <Edit size={16} color={theme.colors.status.warning} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
   };
 
   const renderLocationItem = ({ item }: { item: Location }) => {
-    const utilization = Math.round((item.currentStock / item.capacity) * 100);
+    const utilization = Math.round((item.current_stock / item.capacity) * 100);
     
     return (
       <View style={[styles.itemCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -550,12 +426,12 @@ export default function InventoryPage() {
               {item.code} • {item.address}
             </Text>
             <View style={styles.statusContainer}>
-              {item.type === 'warehouse' ? 
+              {item.location_type === 'warehouse' ? 
                 <Warehouse size={12} color={theme.colors.primary} /> :
                 <Store size={12} color={theme.colors.status.info} />
               }
-              <Text style={[styles.statusText, { color: item.type === 'warehouse' ? theme.colors.primary : theme.colors.status.info }]}>
-                {item.type === 'warehouse' ? 'Warehouse' : 'Showroom'}
+              <Text style={[styles.statusText, { color: item.location_type === 'warehouse' ? theme.colors.primary : theme.colors.status.info }]}>
+                {item.location_type === 'warehouse' ? 'Warehouse' : 'Showroom'}
               </Text>
             </View>
           </View>
@@ -564,11 +440,11 @@ export default function InventoryPage() {
         <View style={styles.itemDetails}>
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Manager:</Text>
-            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>{item.manager}</Text>
+            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>{item.manager_name || 'N/A'}</Text>
           </View>
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Phone:</Text>
-            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>{item.phone}</Text>
+            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>{item.manager_phone || 'N/A'}</Text>
           </View>
           
           <View style={styles.utilizationContainer}>
@@ -588,7 +464,7 @@ export default function InventoryPage() {
             </View>
             <View style={styles.capacityInfo}>
               <Text style={[styles.capacityText, { color: theme.colors.text.secondary }]}>
-                {item.currentStock.toLocaleString()} / {item.capacity.toLocaleString()}
+                {item.current_stock.toLocaleString()} / {item.capacity.toLocaleString()}
               </Text>
             </View>
           </View>
@@ -615,55 +491,91 @@ export default function InventoryPage() {
     );
   };
 
-  const renderTransferItem = ({ item }: { item: StockTransfer }) => {
-    const StatusIcon = getStatusIcon(item.status);
-    
+  const renderTransferItem = ({ item }: { item: Transfer }) => {
+    const StatusIcon = getStatusIcon(item.transfer_status);
+    const priorityColor = item.priority_level === 'urgent' ? theme.colors.status.error :
+                         item.priority_level === 'high' ? theme.colors.status.warning :
+                         theme.colors.status.info;
+
     return (
       <View style={[styles.itemCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
         <View style={styles.itemHeader}>
           <View style={styles.itemInfo}>
             <Text style={[styles.itemName, { color: theme.colors.text.primary }]}>
-              {item.transferNumber}
+              {item.product_name || 'Unknown Product'}
             </Text>
             <Text style={[styles.itemCode, { color: theme.colors.text.secondary }]}>
-              {item.productName}
+              {item.transfer_number} • {item.product_code}
             </Text>
             <View style={styles.statusContainer}>
-              <StatusIcon size={12} color={getStatusColor(item.status)} />
-              <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                {item.status}
+              <StatusIcon size={12} color={getStatusColor(item.transfer_status)} />
+              <Text style={[styles.statusText, { color: getStatusColor(item.transfer_status) }]}>
+                {item.transfer_status.charAt(0).toUpperCase() + item.transfer_status.slice(1)}
               </Text>
+              <View style={[styles.priorityBadge, { backgroundColor: priorityColor + '20' }]}>
+                <Text style={[styles.priorityText, { color: priorityColor }]}>
+                  {item.priority_level.toUpperCase()}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
 
-        <View style={styles.itemDetails}>
-          <View style={styles.transferRoute}>
-            <View style={styles.transferLocation}>
-              <Text style={[styles.transferLabel, { color: theme.colors.text.secondary }]}>From:</Text>
-              <Text style={[styles.transferValue, { color: theme.colors.text.primary }]}>{item.fromLocationName}</Text>
-            </View>
-            <ArrowRightLeft size={16} color={theme.colors.text.muted} />
-            <View style={styles.transferLocation}>
-              <Text style={[styles.transferLabel, { color: theme.colors.text.secondary }]}>To:</Text>
-              <Text style={[styles.transferValue, { color: theme.colors.text.primary }]}>{item.toLocationName}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Quantity:</Text>
-            <Text style={[styles.detailValue, { color: theme.colors.primary }]}>{item.quantity}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Requested by:</Text>
-            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>{item.requestedBy}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Date:</Text>
-            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
-              {item.requestDate.toLocaleDateString()}
+        <View style={styles.transferRoute}>
+          <View style={styles.transferLocation}>
+            <Text style={[styles.transferLabel, { color: theme.colors.text.secondary }]}>From</Text>
+            <Text style={[styles.transferValue, { color: theme.colors.text.primary }]}>
+              {item.from_location_name}
             </Text>
           </View>
+          <ArrowRightLeft size={16} color={theme.colors.text.secondary} />
+          <View style={styles.transferLocation}>
+            <Text style={[styles.transferLabel, { color: theme.colors.text.secondary }]}>To</Text>
+            <Text style={[styles.transferValue, { color: theme.colors.text.primary }]}>
+              {item.to_location_name}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.itemDetails}>
+          <View style={styles.detailRow}>
+            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Requested:</Text>
+            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
+              {item.requested_quantity} units
+            </Text>
+          </View>
+          
+          {item.approved_quantity && (
+            <View style={styles.detailRow}>
+              <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Approved:</Text>
+              <Text style={[styles.detailValue, { color: theme.colors.status.success }]}>
+                {item.approved_quantity} units
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.detailRow}>
+            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Requested by:</Text>
+            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
+              {item.requester_name || 'Unknown'}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Request Date:</Text>
+            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
+              {new Date(item.request_date).toLocaleDateString()}
+            </Text>
+          </View>
+
+          {item.reason && (
+            <View style={styles.detailRow}>
+              <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Reason:</Text>
+              <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
+                {item.reason}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.itemActions}>
@@ -674,7 +586,7 @@ export default function InventoryPage() {
             <Eye size={16} color={theme.colors.status.info} />
           </TouchableOpacity>
           
-          {hasPermission('inventory', 'edit') && item.status === 'Pending' && (
+          {item.transfer_status === 'pending' && hasPermission('inventory', 'edit') && (
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: theme.colors.status.success + '20' }]}
               onPress={() => handleAction('approve', item)}
@@ -687,13 +599,12 @@ export default function InventoryPage() {
     );
   };
 
-  // Union type for all possible data items
-  type InventoryItem = StockItem | Location | StockTransfer;
+  type InventoryItem = StockItem | Location | Transfer;
 
   const getCurrentData = (): InventoryItem[] => {
     switch (activeTab) {
       case 'stock':
-        return filteredStockItems;
+        return stockItems;
       case 'locations':
         return locations;
       case 'transfers':
@@ -710,9 +621,9 @@ export default function InventoryPage() {
       case 'locations':
         return renderLocationItem({ item: item as Location });
       case 'transfers':
-        return renderTransferItem({ item: item as StockTransfer });
+        return renderTransferItem({ item: item as Transfer });
       default:
-        return renderStockItem({ item: item as StockItem });
+        return null;
     }
   };
 
@@ -764,7 +675,7 @@ export default function InventoryPage() {
         <FlatList<InventoryItem>
           data={getCurrentData()}
           renderItem={renderInventoryItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => item.id || `item-${index}`}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
           scrollEnabled={false}
@@ -1050,5 +961,15 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 14,
     marginTop: 8,
+  },
+  priorityBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  priorityText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
 }); 
