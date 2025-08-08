@@ -85,7 +85,8 @@ interface ProductFormData {
   description: string;
   purchase_price: string;
   selling_price: string;
-  per_meter_price: string;
+  unit_of_measurement: string;
+  per_unit_price: string;
   supplier_id: string;
   location_id: string;
   minimum_threshold: string;
@@ -129,7 +130,7 @@ const formSteps: FormStep[] = [
   {
     title: 'Pricing',
     icon: DollarSign,
-    fields: ['purchase_price', 'selling_price', 'per_meter_price']
+    fields: ['purchase_price', 'selling_price', 'unit_of_measurement', 'per_unit_price']
   },
   {
     title: 'Stock & Location',
@@ -260,6 +261,26 @@ const productStatuses: ProductStatus[] = [
   { id: 'inactive', name: 'Inactive', description: 'Not available for sale' },
 ];
 
+// Measurement units
+interface MeasurementUnit {
+  id: string;
+  name: string;
+  symbol: string;
+  description: string;
+}
+
+const measurementUnits: MeasurementUnit[] = [
+  { id: 'meter', name: 'Meter', symbol: 'm', description: 'Length measurement for fabrics' },
+  { id: 'yard', name: 'Yard', symbol: 'yd', description: 'Imperial length measurement' },
+  { id: 'kilogram', name: 'Kilogram', symbol: 'kg', description: 'Weight measurement' },
+  { id: 'gram', name: 'Gram', symbol: 'g', description: 'Small weight measurement' },
+  { id: 'piece', name: 'Piece', symbol: 'pcs', description: 'Individual items' },
+  { id: 'pair', name: 'Pair', symbol: 'pair', description: 'Items sold in pairs' },
+  { id: 'dozen', name: 'Dozen', symbol: 'dz', description: '12 pieces' },
+  { id: 'roll', name: 'Roll', symbol: 'roll', description: 'Fabric rolls' },
+  { id: 'bundle', name: 'Bundle', symbol: 'bundle', description: 'Bundled items' },
+];
+
 // Field configurations
 const fieldConfig: Record<string, FieldConfig> = {
   name: {
@@ -296,11 +317,18 @@ const fieldConfig: Record<string, FieldConfig> = {
     placeholder: '0.00',
     keyboardType: 'numeric'
   },
-  per_meter_price: {
-    label: 'Per Meter Price',
+  unit_of_measurement: {
+    label: 'Unit of Measurement',
+    required: true,
+    type: 'dropdown',
+    options: measurementUnits,
+    placeholder: 'Select measurement unit'
+  },
+  per_unit_price: {
+    label: 'Per Unit Price',
     placeholder: 'Auto-calculated',
     keyboardType: 'numeric',
-    info: 'Will be calculated based on selling price'
+    info: 'Will be calculated based on selling price and unit'
   },
   supplier_id: {
     label: 'Supplier',
@@ -634,10 +662,16 @@ interface PriceCalculatorProps {
 const PriceCalculator: React.FC<PriceCalculatorProps> = ({ formData, theme }) => {
   const purchasePrice = parseFloat(formData.purchase_price) || 0;
   const sellingPrice = parseFloat(formData.selling_price) || 0;
+  const perUnitPrice = parseFloat(formData.per_unit_price) || 0;
 
   const profitMargin = purchasePrice && sellingPrice
     ? (((sellingPrice - purchasePrice) / purchasePrice) * 100).toFixed(1)
     : '0';
+
+  // Get the selected unit details
+  const selectedUnit = measurementUnits.find(unit => unit.id === formData.unit_of_measurement);
+  const unitSymbol = selectedUnit?.symbol || 'unit';
+  const unitName = selectedUnit?.name || 'Unit';
 
   return (
     <View style={[styles.calculatorCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
@@ -667,6 +701,14 @@ const PriceCalculator: React.FC<PriceCalculatorProps> = ({ formData, theme }) =>
             ৳{purchasePrice && sellingPrice ? (sellingPrice - purchasePrice).toFixed(2) : '0.00'}
           </Text>
         </View>
+        <View style={styles.calculatorRow}>
+          <Text style={[styles.calculatorLabel, { color: theme.colors.text.muted }]}>
+            Per {unitName} Price:
+          </Text>
+          <Text style={[styles.calculatorValue, { color: theme.colors.primary }]}>
+            ৳{perUnitPrice.toFixed(2)}/{unitSymbol}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -691,7 +733,8 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     description: '',
     purchase_price: '',
     selling_price: '',
-    per_meter_price: '',
+    unit_of_measurement: 'meter',
+    per_unit_price: '',
     supplier_id: '',
     location_id: '',
     minimum_threshold: '100',
@@ -718,13 +761,40 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     }
   }, [formData.name, existingProduct]);
 
-  // Auto-calculate per meter price
+  // Auto-calculate per unit price based on selling price and unit
   React.useEffect(() => {
     if (formData.selling_price && parseFloat(formData.selling_price) > 0) {
-      const perMeterPrice = (parseFloat(formData.selling_price) * 0.9).toFixed(2);
-      setFormData(prev => ({ ...prev, per_meter_price: perMeterPrice }));
+      // Different calculation factors based on unit type
+      let calculationFactor = 0.9; // Default factor
+      
+      switch (formData.unit_of_measurement) {
+        case 'meter':
+        case 'yard':
+          calculationFactor = 0.9; // 10% discount for length units
+          break;
+        case 'kilogram':
+        case 'gram':
+          calculationFactor = 0.95; // 5% discount for weight units
+          break;
+        case 'piece':
+        case 'pair':
+          calculationFactor = 0.85; // 15% discount for individual items
+          break;
+        case 'dozen':
+          calculationFactor = 0.8; // 20% discount for bulk (dozen)
+          break;
+        case 'roll':
+        case 'bundle':
+          calculationFactor = 0.88; // 12% discount for bundled items
+          break;
+        default:
+          calculationFactor = 0.9;
+      }
+      
+      const perUnitPrice = (parseFloat(formData.selling_price) * calculationFactor).toFixed(2);
+      setFormData(prev => ({ ...prev, per_unit_price: perUnitPrice }));
     }
-  }, [formData.selling_price]);
+  }, [formData.selling_price, formData.unit_of_measurement]);
 
   // Handle existing product selection
   const handleExistingProductSelect = (product: ExistingProduct) => {
@@ -742,7 +812,8 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
       // Reset other fields for new stock entry
       purchase_price: '',
       selling_price: '',
-      per_meter_price: '',
+      unit_of_measurement: 'meter',
+      per_unit_price: '',
       location_id: '',
       current_stock: '0',
     }));
@@ -792,7 +863,8 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
           description: '',
           purchase_price: '',
           selling_price: '',
-          per_meter_price: '',
+          unit_of_measurement: 'meter',
+          per_unit_price: '',
           supplier_id: '',
           location_id: '',
           minimum_threshold: '100',
@@ -853,7 +925,8 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
         description: formData.description?.trim(),
         purchase_price: parseFloat(formData.purchase_price),
         selling_price: parseFloat(formData.selling_price),
-        per_meter_price: parseFloat(formData.per_meter_price) || null,
+        unit_of_measurement: formData.unit_of_measurement,
+        per_unit_price: parseFloat(formData.per_unit_price) || null,
         supplier_id: parseInt(formData.supplier_id),
         location_id: parseInt(formData.location_id),
         minimum_threshold: parseInt(formData.minimum_threshold) || 100,
@@ -1059,7 +1132,7 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
               if (field === 'images' || field === 'product_type_selection') return null; // Already handled above
 
               const config = fieldConfig[field];
-              const isRowField = (field === 'purchase_price' || field === 'lot_number');
+              const isRowField = (field === 'purchase_price' || field === 'lot_number' || field === 'unit_of_measurement');
 
               // For existing products, make certain fields read-only
               const isReadOnlyForExisting = productType === 'existing' && 
@@ -1118,6 +1191,58 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
                 );
               }
 
+              if (isRowField && field === 'unit_of_measurement') {
+                return (
+                  <View key={field} style={styles.addressRow}>
+                    <View style={[styles.addressInput, { zIndex: 1001 }]}>
+                      <Text style={[
+                        styles.label,
+                        config?.required && styles.requiredLabel,
+                        { color: config?.required ? theme.colors.status.error : theme.colors.text.primary }
+                      ]}>
+                        {config?.label} {config?.required && '*'}
+                      </Text>
+                      <FormInput
+                        field={field}
+                        fieldConfig={fieldConfig}
+                        value={formData[field as keyof ProductFormData]}
+                        onChangeText={(value) => updateFormData(field as keyof ProductFormData, value)}
+                        onBlur={() => { }}
+                        errors={errors}
+                        theme={theme}
+                      />
+                      {errors[field] && (
+                        <Text style={[styles.errorText, { color: theme.colors.status.error }]}>
+                          {errors[field]}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={[styles.addressInput, { zIndex: 1000 }]}>
+                      <Text style={[styles.label, { color: theme.colors.text.primary }]}>
+                        Per {measurementUnits.find(unit => unit.id === formData.unit_of_measurement)?.name || 'Unit'} Price
+                        {fieldConfig.per_unit_price?.info && (
+                          <Info size={12} color={theme.colors.text.muted} style={{ marginLeft: 4 }} />
+                        )}
+                      </Text>
+                      <FormInput
+                        field="per_unit_price"
+                        fieldConfig={fieldConfig}
+                        value={formData.per_unit_price}
+                        onChangeText={(value) => updateFormData('per_unit_price', value)}
+                        onBlur={() => { }}
+                        errors={errors}
+                        theme={theme}
+                      />
+                      {fieldConfig.per_unit_price?.info && (
+                        <Text style={[styles.infoText, { color: theme.colors.text.muted }]}>
+                          {fieldConfig.per_unit_price.info}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              }
+
               if (isRowField && field === 'lot_number') {
                 return (
                   <View key={field} style={styles.addressRow}>
@@ -1161,11 +1286,19 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
                 );
               }
 
-              if (field === 'selling_price' || field === 'current_stock') return null; // Already rendered in row
+              if (field === 'selling_price' || field === 'current_stock' || field === 'per_unit_price') return null; // Already rendered in row
 
               // Assign higher z-index to fields that appear earlier in the form
               const fieldIndex = currentStepFields.indexOf(field);
               const zIndexValue = 2000 - fieldIndex * 100; // Higher z-index for earlier fields
+
+              // Dynamic label for per unit price based on selected unit
+              let dynamicLabel = config?.label;
+              if (field === 'per_unit_price') {
+                const selectedUnit = measurementUnits.find(unit => unit.id === formData.unit_of_measurement);
+                const unitName = selectedUnit?.name || 'Unit';
+                dynamicLabel = `Per ${unitName} Price`;
+              }
 
               return (
                 <View key={field} style={[styles.inputGroup, { zIndex: zIndexValue }]}>
@@ -1174,7 +1307,7 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
                     config?.required && styles.requiredLabel,
                     { color: config?.required ? theme.colors.status.error : theme.colors.text.primary }
                   ]}>
-                    {config?.label} {config?.required && '*'}
+                    {dynamicLabel} {config?.required && '*'}
                     {config?.info && (
                       <Info size={12} color={theme.colors.text.muted} style={{ marginLeft: 4 }} />
                     )}
