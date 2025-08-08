@@ -1,100 +1,675 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
+  Modal,
   ScrollView,
   TouchableOpacity,
-  TextInput,
-  Modal,
-  Dimensions,
   Alert,
-  Image,
-  Platform,
+  Dimensions,
   KeyboardAvoidingView,
+  Platform,
   Animated,
   TouchableWithoutFeedback,
   StatusBar,
+  TextInput,
 } from 'react-native';
 import {
   X,
-  Camera,
-  Upload,
   Package,
   DollarSign,
-  MapPin,
-  User,
-  Calendar,
-  AlertCircle,
-  Check,
-  ChevronDown,
-  Star,
+  Image as ImageIcon,
+  Warehouse,
+  Camera,
+  Upload,
   Sparkles,
+  ChevronDown,
+  Info,
+  Calculator,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { productService, CreateProductRequest, Category, Supplier, Location } from '@/lib/database/product-service';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { height: screenHeight } = Dimensions.get('window');
+
+// Types
+interface Category {
+  id: number;
+  name: string;
+  description: string;
+}
+
+interface Supplier {
+  id: number;
+  name: string;
+  contact: string;
+}
+
+interface Location {
+  id: number;
+  name: string;
+  description: string;
+}
+
+interface ProductStatus {
+  id: string;
+  name: string;
+  description: string;
+}
+
+interface FormStep {
+  title: string;
+  icon: any;
+  fields: string[];
+}
+
+interface FieldConfig {
+  label: string;
+  required?: boolean;
+  placeholder: string;
+  keyboardType?: string;
+  multiline?: boolean;
+  type?: string;
+  options?: any[];
+  disabled?: boolean;
+  info?: string;
+  defaultValue?: any;
+  rules?: any;
+}
 
 interface ProductFormData {
-  productName: string;
-  productCode: string;
-  categoryId: string;
+  name: string;
+  product_code: string;
+  category_id: string;
   description: string;
-  purchaseAmount: string;
-  purchasePrice: string;
-  sellingPrice: string;
-  perMeterPrice: string;
-  lotNumber: string;
-  supplierId: string;
-  locationId: string;
-  minimumThreshold: string;
-  paymentStatus: 'paid' | 'partial' | 'pending';
-  paidAmount: string;
-  dueDate: string;
-  productImage: string | null;
-  initialQuantity: string;
-  purchaseDate: string;
-  color: string;
-  material: string;
-  width: string;
-  weight: string;
-  unitOfMeasure: 'meter' | 'piece' | 'roll' | 'yard' | 'kilogram';
+  purchase_price: string;
+  selling_price: string;
+  per_meter_price: string;
+  supplier_id: string;
+  location_id: string;
+  minimum_threshold: string;
+  current_stock: string;
+  lot_number: string;
+  product_status: string;
+  wastage_status: boolean;
+}
+
+interface ExistingProduct {
+  id: string;
+  name: string;
+  product_code: string;
+  category_id: string;
+  category_name: string;
+  description: string;
+  supplier_id: string;
+  supplier_name: string;
+  last_lot_number: number;
 }
 
 interface ProductAddFormProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (data: CreateProductRequest & { initial_quantity: number; purchase_date: string; lot_number?: string }) => void;
+  onSubmit: (data: any) => void;
   existingProduct?: any;
 }
 
-// Icon mapping for categories
-const categoryIcons: Record<string, string> = {
-  'Sofa Fabrics': '🛋️',
-  'Curtain Fabrics': '🪟',
-  'Artificial Leather': '👜',
-  'Garments': '👕',
-  'Upholstery Fabrics': '🪑',
-  'Denim Fabrics': '👖',
-  'Cotton Fabrics': '🌿',
-  'Silk Fabrics': '🎀',
-  'Wool Fabrics': '🐑',
-  'Linen Fabrics': '🌾',
-  'Polyester Fabrics': '🧵',
-  'Velvet Fabrics': '✨',
-  'Canvas Fabrics': '🎨',
-  'Mesh Fabrics': '🕸️',
-  'Lace Fabrics': '🌸',
+// Form configuration
+const formSteps: FormStep[] = [
+  {
+    title: 'Product Type',
+    icon: Package,
+    fields: ['product_type_selection']
+  },
+  {
+    title: 'Basic Info',
+    icon: Package,
+    fields: ['name', 'product_code', 'category_id', 'description']
+  },
+  {
+    title: 'Pricing',
+    icon: DollarSign,
+    fields: ['purchase_price', 'selling_price', 'per_meter_price']
+  },
+  {
+    title: 'Stock & Location',
+    icon: Warehouse,
+    fields: ['supplier_id', 'location_id', 'lot_number', 'minimum_threshold', 'current_stock']
+  },
+  {
+    title: 'Images & Status',
+    icon: ImageIcon,
+    fields: ['images', 'product_status', 'wastage_status']
+  }
+];
+
+// Mock data - replace with actual API calls
+const mockCategories: Category[] = [
+  { id: 1, name: 'Electronics', description: 'Electronic products' },
+  { id: 2, name: 'Textiles', description: 'Fabric and textile products' },
+  { id: 3, name: 'Hardware', description: 'Hardware items' },
+];
+
+const mockSuppliers: Supplier[] = [
+  { id: 1, name: 'ABC Suppliers Ltd.', contact: '+880 123456789' },
+  { id: 2, name: 'XYZ Trading Co.', contact: '+880 987654321' },
+  { id: 3, name: 'Global Imports', contact: '+880 555666777' },
+];
+
+const mockLocations: Location[] = [
+  { id: 1, name: 'Warehouse A', description: 'Main warehouse' },
+  { id: 2, name: 'Warehouse B', description: 'Secondary warehouse' },
+  { id: 3, name: 'Store Front', description: 'Retail store' },
+];
+
+// Mock existing products for restocking
+const mockExistingProducts: ExistingProduct[] = [
+  {
+    id: '1',
+    name: 'Premium Velvet Fabric',
+    product_code: 'PVF-001',
+    category_id: '2',
+    category_name: 'Textiles',
+    description: 'High-quality velvet fabric for premium furniture',
+    supplier_id: '1',
+    supplier_name: 'ABC Suppliers Ltd.',
+    last_lot_number: 3
+  },
+  {
+    id: '2',
+    name: 'Cotton Blend Fabric',
+    product_code: 'CBF-002',
+    category_id: '2',
+    category_name: 'Textiles',
+    description: 'Durable cotton blend fabric for everyday use',
+    supplier_id: '2',
+    supplier_name: 'XYZ Trading Co.',
+    last_lot_number: 1
+  },
+  {
+    id: '3',
+    name: 'Leather Upholstery',
+    product_code: 'LU-003',
+    category_id: '2',
+    category_name: 'Textiles',
+    description: 'Premium leather for luxury furniture upholstery',
+    supplier_id: '3',
+    supplier_name: 'Global Imports',
+    last_lot_number: 2
+  },
+  {
+    id: '4',
+    name: 'Silk Fabric Premium',
+    product_code: 'SF-004',
+    category_id: '2',
+    category_name: 'Textiles',
+    description: 'Luxurious silk fabric for high-end applications',
+    supplier_id: '1',
+    supplier_name: 'ABC Suppliers Ltd.',
+    last_lot_number: 5
+  },
+  {
+    id: '5',
+    name: 'Polyester Blend',
+    product_code: 'PB-005',
+    category_id: '2',
+    category_name: 'Textiles',
+    description: 'Durable polyester blend for commercial use',
+    supplier_id: '2',
+    supplier_name: 'XYZ Trading Co.',
+    last_lot_number: 2
+  },
+  {
+    id: '6',
+    name: 'Wool Fabric',
+    product_code: 'WF-006',
+    category_id: '2',
+    category_name: 'Textiles',
+    description: 'Natural wool fabric for winter clothing',
+    supplier_id: '3',
+    supplier_name: 'Global Imports',
+    last_lot_number: 1
+  },
+  {
+    id: '7',
+    name: 'Linen Fabric',
+    product_code: 'LF-007',
+    category_id: '2',
+    category_name: 'Textiles',
+    description: 'Breathable linen fabric for summer wear',
+    supplier_id: '1',
+    supplier_name: 'ABC Suppliers Ltd.',
+    last_lot_number: 4
+  },
+  {
+    id: '8',
+    name: 'Denim Fabric',
+    product_code: 'DF-008',
+    category_id: '2',
+    category_name: 'Textiles',
+    description: 'Heavy-duty denim fabric for jeans and jackets',
+    supplier_id: '2',
+    supplier_name: 'XYZ Trading Co.',
+    last_lot_number: 3
+  }
+];
+
+const productStatuses: ProductStatus[] = [
+  { id: 'active', name: 'Active', description: 'Available for sale' },
+  { id: 'slow', name: 'Slow Moving', description: 'Low demand product' },
+  { id: 'inactive', name: 'Inactive', description: 'Not available for sale' },
+];
+
+// Field configurations
+const fieldConfig: Record<string, FieldConfig> = {
+  name: {
+    label: 'Product Name',
+    required: true,
+    placeholder: 'Enter product name'
+  },
+  product_code: {
+    label: 'Product Code',
+    placeholder: 'Auto-generated',
+    disabled: true
+  },
+  category_id: {
+    label: 'Category',
+    required: true,
+    type: 'dropdown',
+    options: mockCategories,
+    placeholder: 'Select category'
+  },
+  description: {
+    label: 'Description',
+    placeholder: 'Enter product description',
+    multiline: true
+  },
+  purchase_price: {
+    label: 'Purchase Price',
+    required: true,
+    placeholder: '0.00',
+    keyboardType: 'numeric'
+  },
+  selling_price: {
+    label: 'Selling Price',
+    required: true,
+    placeholder: '0.00',
+    keyboardType: 'numeric'
+  },
+  per_meter_price: {
+    label: 'Per Meter Price',
+    placeholder: 'Auto-calculated',
+    keyboardType: 'numeric',
+    info: 'Will be calculated based on selling price'
+  },
+  supplier_id: {
+    label: 'Supplier',
+    required: true,
+    type: 'dropdown',
+    options: mockSuppliers,
+    placeholder: 'Select supplier'
+  },
+  location_id: {
+    label: 'Location',
+    required: true,
+    type: 'dropdown',
+    options: mockLocations,
+    placeholder: 'Select location'
+  },
+  minimum_threshold: {
+    label: 'Minimum Threshold',
+    placeholder: '100',
+    keyboardType: 'numeric',
+    info: 'Alert when stock goes below this amount'
+  },
+  current_stock: {
+    label: 'Current Stock',
+    placeholder: '0',
+    keyboardType: 'numeric'
+  },
+  lot_number: {
+    label: 'Lot Number',
+    placeholder: 'Auto-generated',
+    disabled: true,
+    info: 'Automatically assigned based on previous lots'
+  },
+  product_status: {
+    label: 'Product Status',
+    type: 'dropdown',
+    options: productStatuses,
+    defaultValue: 'active',
+    placeholder: 'Select status'
+  },
+  wastage_status: {
+    label: 'Wastage Status',
+    type: 'boolean',
+    info: 'Mark if product is in wastage',
+    placeholder: 'No'
+  },
 };
 
-// Icon mapping for locations
-const locationIcons: Record<string, string> = {
-  'warehouse': '🏭',
-  'showroom': '🏪',
-  'storage': '📦',
-  'store': '🏬',
+// Reusable Components
+interface FormInputProps {
+  field: string;
+  fieldConfig: Record<string, FieldConfig>;
+  value: string | boolean;
+  onChangeText: (text: string | boolean) => void;
+  onBlur: () => void;
+  errors: Record<string, string>;
+  theme: any;
+}
+
+const FormInput: React.FC<FormInputProps> = ({ field, fieldConfig, value, onChangeText, onBlur, errors, theme }) => {
+  const config = fieldConfig[field];
+
+  if (config?.type === 'dropdown') {
+    return (
+      <DropdownField
+        value={value as string}
+        onChange={onChangeText}
+        options={config.options || []}
+        placeholder={config.placeholder}
+        theme={theme}
+        error={errors[field]}
+        displayKey="name"
+      />
+    );
+  }
+
+  if (config?.type === 'boolean') {
+    return (
+      <View style={styles.booleanContainer}>
+        <TouchableOpacity
+          style={[
+            styles.booleanButton,
+            value && styles.booleanButtonActive,
+            { borderColor: theme.colors.primary }
+          ]}
+          onPress={() => onChangeText(!value)}
+        >
+          <View style={[
+            styles.booleanIndicator,
+            value && styles.booleanIndicatorActive,
+            { backgroundColor: value ? theme.colors.primary : theme.colors.border }
+          ]} />
+          <Text style={[
+            styles.booleanText,
+            { color: value ? theme.colors.primary : theme.colors.text.muted }
+          ]}>
+            {value ? 'Yes' : 'No'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <TextInput
+      style={[
+        styles.input,
+        config?.multiline && styles.textArea,
+        config?.disabled && styles.inputDisabled,
+        errors[field] && styles.inputError,
+        {
+          borderColor: errors[field] ? theme.colors.status.error : theme.colors.border,
+          backgroundColor: config?.disabled ? theme.colors.backgroundSecondary : theme.colors.backgroundTertiary,
+          color: config?.disabled ? theme.colors.text.muted : theme.colors.text.primary
+        }
+      ]}
+      value={value?.toString() || ''}
+      onChangeText={onChangeText}
+      onBlur={onBlur}
+      placeholder={config?.placeholder}
+      placeholderTextColor={theme.colors.text.muted}
+      keyboardType={config?.keyboardType as any}
+      multiline={config?.multiline}
+      numberOfLines={config?.multiline ? 3 : 1}
+      editable={!config?.disabled}
+      autoCapitalize="sentences"
+    />
+  );
+};
+
+interface DropdownFieldProps {
+  value: string;
+  onChange: (value: string | boolean) => void;
+  options: any[];
+  placeholder: string;
+  theme: any;
+  error?: string;
+  displayKey?: string;
+  searchable?: boolean;
+}
+
+const DropdownField: React.FC<DropdownFieldProps> = ({ value, onChange, options, placeholder, theme, error, displayKey = 'name', searchable = false }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState<'bottom' | 'top'>('bottom');
+  const [searchQuery, setSearchQuery] = useState('');
+  const dropdownRef = useRef<View>(null);
+
+  const selectedOption = options.find((option: any) => option.id === value || option.id.toString() === value);
+
+  // Filter options based on search query
+  const filteredOptions = searchable && searchQuery
+    ? options.filter((option: any) => 
+        option[displayKey].toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (option.product_code && option.product_code.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (option.description && option.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : options;
+
+  const handleDropdownToggle = () => {
+    if (!isOpen && dropdownRef.current) {
+      // Measure the dropdown position to determine if it should open upward or downward
+      dropdownRef.current.measure((x, y, width, height, pageX, pageY) => {
+        const screenHeight = Dimensions.get('window').height;
+        const dropdownHeight = Math.min(filteredOptions.length * 60, 200); // Estimate dropdown height
+        const spaceBelow = screenHeight - pageY - height - 100; // 100px buffer for footer
+        const spaceAbove = pageY - 100; // 100px buffer for header
+
+        if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+          setDropdownPosition('top');
+        } else {
+          setDropdownPosition('bottom');
+        }
+      });
+    }
+    setIsOpen(!isOpen);
+    if (!isOpen && searchable) {
+      setSearchQuery('');
+    }
+  };
+
+  return (
+    <View style={[styles.dropdownContainer, isOpen && styles.dropdownContainerOpen]} ref={dropdownRef}>
+      <TouchableOpacity
+        style={[
+          styles.dropdownButton,
+          {
+            borderColor: error ? theme.colors.status.error : theme.colors.border,
+            backgroundColor: theme.colors.backgroundTertiary
+          }
+        ]}
+        onPress={handleDropdownToggle}
+      >
+        <View style={styles.dropdownContent}>
+          <Text style={[
+            styles.dropdownButtonText,
+            { color: selectedOption ? theme.colors.text.primary : theme.colors.text.muted }
+          ]}>
+            {selectedOption ? selectedOption[displayKey] : placeholder}
+          </Text>
+          {selectedOption?.description && (
+            <Text style={[styles.dropdownSubtext, { color: theme.colors.text.muted }]}>
+              {selectedOption.description}
+            </Text>
+          )}
+        </View>
+        <ChevronDown
+          size={20}
+          color={theme.colors.text.muted}
+          style={[styles.dropdownIcon, isOpen && { transform: [{ rotate: '180deg' }] }]}
+        />
+      </TouchableOpacity>
+
+      {isOpen && (
+        <View style={[
+          styles.dropdownList,
+          dropdownPosition === 'top' ? styles.dropdownListTop : styles.dropdownListBottom,
+          { backgroundColor: theme.colors.background }
+        ]}>
+          {searchable && (
+            <View style={[styles.searchContainer, { borderBottomColor: theme.colors.border }]}>
+              <TextInput
+                style={[styles.searchInput, { 
+                  backgroundColor: theme.colors.backgroundTertiary,
+                  color: theme.colors.text.primary,
+                  borderColor: theme.colors.border
+                }]}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search products..."
+                placeholderTextColor={theme.colors.text.muted}
+                autoFocus
+              />
+            </View>
+          )}
+          <ScrollView
+            style={{ maxHeight: searchable ? 160 : 200 }}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="handled"
+          >
+            {filteredOptions.length === 0 ? (
+              <View style={styles.noResultsContainer}>
+                <Text style={[styles.noResultsText, { color: theme.colors.text.muted }]}>
+                  No products found
+                </Text>
+              </View>
+            ) : (
+              filteredOptions.map((item: any) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.dropdownItem,
+                    { borderBottomColor: theme.colors.border }
+                  ]}
+                  onPress={() => {
+                    onChange(item.id.toString());
+                    setIsOpen(false);
+                    setSearchQuery('');
+                  }}
+                >
+                  <View>
+                    <Text style={[styles.dropdownItemText, { color: theme.colors.text.primary }]}>
+                      {item[displayKey]}
+                    </Text>
+                    {item.product_code && (
+                      <Text style={[styles.dropdownItemCode, { color: theme.colors.primary }]}>
+                        Code: {item.product_code}
+                      </Text>
+                    )}
+                    {item.description && (
+                      <Text style={[styles.dropdownItemDescription, { color: theme.colors.text.muted }]}>
+                        {item.description}
+                      </Text>
+                    )}
+                    {item.contact && (
+                      <Text style={[styles.dropdownItemDescription, { color: theme.colors.text.muted }]}>
+                        {item.contact}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+};
+
+interface StepIndicatorProps {
+  currentStep: number;
+  steps: FormStep[];
+  theme: any;
+}
+
+const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, steps, theme }) => (
+  <View style={[styles.stepIndicator, { backgroundColor: theme.colors.backgroundSecondary }]}>
+    {steps.map((step: FormStep, index: number) => (
+      <View key={index} style={styles.stepItem}>
+        <View style={[
+          styles.stepCircle,
+          { backgroundColor: index <= currentStep ? theme.colors.primary : theme.colors.border }
+        ]}>
+          <step.icon
+            size={16}
+            color={index <= currentStep ? '#FFFFFF' : theme.colors.text.muted}
+          />
+        </View>
+        <Text style={[
+          styles.stepText,
+          { color: index <= currentStep ? theme.colors.primary : theme.colors.text.muted }
+        ]}>
+          {step.title}
+        </Text>
+        {index < steps.length - 1 && (
+          <View style={[
+            styles.stepLine,
+            { backgroundColor: index < currentStep ? theme.colors.primary : theme.colors.border }
+          ]} />
+        )}
+      </View>
+    ))}
+  </View>
+);
+
+interface PriceCalculatorProps {
+  formData: ProductFormData;
+  theme: any;
+}
+
+const PriceCalculator: React.FC<PriceCalculatorProps> = ({ formData, theme }) => {
+  const purchasePrice = parseFloat(formData.purchase_price) || 0;
+  const sellingPrice = parseFloat(formData.selling_price) || 0;
+
+  const profitMargin = purchasePrice && sellingPrice
+    ? (((sellingPrice - purchasePrice) / purchasePrice) * 100).toFixed(1)
+    : '0';
+
+  return (
+    <View style={[styles.calculatorCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+      <View style={styles.calculatorHeader}>
+        <Calculator size={18} color={theme.colors.primary} />
+        <Text style={[styles.calculatorTitle, { color: theme.colors.text.primary }]}>
+          Price Analysis
+        </Text>
+      </View>
+      <View style={styles.calculatorContent}>
+        <View style={styles.calculatorRow}>
+          <Text style={[styles.calculatorLabel, { color: theme.colors.text.muted }]}>
+            Profit Margin:
+          </Text>
+          <Text style={[
+            styles.calculatorValue,
+            { color: parseFloat(profitMargin) > 0 ? theme.colors.status.success : theme.colors.text.primary }
+          ]}>
+            {profitMargin}%
+          </Text>
+        </View>
+        <View style={styles.calculatorRow}>
+          <Text style={[styles.calculatorLabel, { color: theme.colors.text.muted }]}>
+            Profit Amount:
+          </Text>
+          <Text style={[styles.calculatorValue, { color: theme.colors.text.primary }]}>
+            ৳{purchasePrice && sellingPrice ? (sellingPrice - purchasePrice).toFixed(2) : '0.00'}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
 };
 
 export default function ProductAddForm({ visible, onClose, onSubmit, existingProduct }: ProductAddFormProps) {
@@ -104,1620 +679,635 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
-  const [formData, setFormData] = useState<ProductFormData>({
-    productName: '',
-    productCode: '',
-    categoryId: '',
-    description: '',
-    purchaseAmount: '',
-    purchasePrice: '',
-    sellingPrice: '',
-    perMeterPrice: '',
-    lotNumber: '1',
-    supplierId: '',
-    locationId: '',
-    minimumThreshold: '100',
-    paymentStatus: 'pending',
-    paidAmount: '',
-    dueDate: '',
-    productImage: null,
-    initialQuantity: '',
-    purchaseDate: new Date().toISOString().split('T')[0],
-    color: '',
-    material: '',
-    width: '',
-    weight: '',
-    unitOfMeasure: 'meter',
-  });
-
-  // Database data
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [loadingData, setLoadingData] = useState(false);
-
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showDropdowns, setShowDropdowns] = useState({
-    category: false,
-    supplier: false,
-    location: false,
-    paymentStatus: false,
-    unitOfMeasure: false,
-  });
-
-  const [searchTexts, setSearchTexts] = useState({
-    category: '',
-    supplier: '',
-    location: '',
-  });
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [productImages, setProductImages] = useState<string[]>([]);
+  const [productType, setProductType] = useState<'new' | 'existing'>('new');
+  const [selectedExistingProduct, setSelectedExistingProduct] = useState<ExistingProduct | null>(null);
+  const [formData, setFormData] = useState<ProductFormData>({
+    name: '',
+    product_code: '',
+    category_id: '',
+    description: '',
+    purchase_price: '',
+    selling_price: '',
+    per_meter_price: '',
+    supplier_id: '',
+    location_id: '',
+    minimum_threshold: '100',
+    current_stock: '0',
+    lot_number: '0',
+    product_status: 'active',
+    wastage_status: false,
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const canAddProduct = hasPermission('products', 'add');
 
-  // Initial form state for resetting
-  const initialFormState: ProductFormData = {
-    productName: '',
-    productCode: '',
-    categoryId: '',
-    description: '',
-    purchaseAmount: '',
-    purchasePrice: '',
-    sellingPrice: '',
-    perMeterPrice: '',
-    lotNumber: '1',
-    supplierId: '',
-    locationId: '',
-    minimumThreshold: '100',
-    paymentStatus: 'pending',
-    paidAmount: '',
-    dueDate: '',
-    productImage: null,
-    initialQuantity: '',
-    purchaseDate: new Date().toISOString().split('T')[0],
-    color: '',
-    material: '',
-    width: '',
-    weight: '',
-    unitOfMeasure: 'meter',
+  const generateProductCode = (name: string): string => {
+    const cleanName = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const timestamp = Date.now().toString().slice(-4);
+    return `PRD-${cleanName.slice(0, 3)}${timestamp}`;
   };
 
-  // Form steps for better UX
-  const steps = [
-    { title: 'Basic Info', icon: Package },
-    { title: 'Pricing', icon: DollarSign },
-    { title: 'Inventory', icon: MapPin },
-    { title: 'Payment', icon: Calendar },
-  ];
-
-  // Unit of measure options
-  const unitOfMeasureOptions = [
-    { id: 'meter', name: 'Meter' },
-    { id: 'piece', name: 'Piece' },
-    { id: 'roll', name: 'Roll' },
-    { id: 'yard', name: 'Yard' },
-    { id: 'kilogram', name: 'Kilogram' },
-  ];
-
-  const getUnitOfMeasureName = (id: string) => {
-    return unitOfMeasureOptions.find(unit => unit.id === id)?.name || 'Meter';
-  };
-
-  // Load database data
-  useEffect(() => {
-    if (visible) {
-      loadDatabaseData();
+  // Auto-generate product code
+  React.useEffect(() => {
+    if (formData.name && !existingProduct) {
+      const code = generateProductCode(formData.name);
+      setFormData(prev => ({ ...prev, product_code: code }));
     }
-  }, [visible]);
-
-  const loadDatabaseData = async () => {
-    try {
-      setLoadingData(true);
-      const [categoriesData, suppliersData, locationsData] = await Promise.all([
-        productService.getCategories(),
-        productService.getSuppliers(),
-        productService.getLocations(),
-      ]);
-
-      setCategories(categoriesData);
-      setSuppliers(suppliersData);
-      setLocations(locationsData);
-    } catch (error) {
-      console.error('Error loading form data:', error);
-      Alert.alert('Error', 'Failed to load form data. Please try again.');
-    } finally {
-      setLoadingData(false);
-    }
-  };
-
-  // Reset form when opening
-  useEffect(() => {
-    if (visible) {
-      if (!existingProduct) {
-        setFormData({
-          productName: '',
-          productCode: '',
-          categoryId: '',
-          description: '',
-          purchaseAmount: '',
-          purchasePrice: '',
-          sellingPrice: '',
-          perMeterPrice: '',
-          lotNumber: '1',
-          supplierId: '',
-          locationId: '',
-          minimumThreshold: '100',
-          paymentStatus: 'pending',
-          paidAmount: '',
-          dueDate: '',
-          productImage: null,
-          initialQuantity: '',
-          purchaseDate: new Date().toISOString().split('T')[0],
-          color: '',
-          material: '',
-          width: '',
-          weight: '',
-          unitOfMeasure: 'meter',
-        });
-      }
-      setErrors({});
-      setCurrentStep(0);
-      setShowDropdowns({
-        category: false,
-        supplier: false,
-        location: false,
-        paymentStatus: false,
-        unitOfMeasure: false,
-      });
-    }
-  }, [visible, existingProduct]);
-
-  // Enhanced animations
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          tension: 50,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 50,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: -screenHeight,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.9,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [visible, overlayOpacity, slideAnim, scaleAnim]);
+  }, [formData.name, existingProduct]);
 
   // Auto-calculate per meter price
-  useEffect(() => {
-    if (formData.purchasePrice && formData.sellingPrice) {
-      const purchasePrice = parseFloat(formData.purchasePrice) || 0;
-      const sellingPrice = parseFloat(formData.sellingPrice) || 0;
-      const perMeter = sellingPrice > 0 ? sellingPrice : purchasePrice;
-      setFormData(prev => ({ ...prev, perMeterPrice: perMeter.toFixed(2) }));
+  React.useEffect(() => {
+    if (formData.selling_price && parseFloat(formData.selling_price) > 0) {
+      const perMeterPrice = (parseFloat(formData.selling_price) * 0.9).toFixed(2);
+      setFormData(prev => ({ ...prev, per_meter_price: perMeterPrice }));
     }
-  }, [formData.purchasePrice, formData.sellingPrice]);
+  }, [formData.selling_price]);
 
-  const handlePerMeterPriceChange = (value: string) => {
+  // Handle existing product selection
+  const handleExistingProductSelect = (product: ExistingProduct) => {
+    setSelectedExistingProduct(product);
+    const nextLotNumber = (product.last_lot_number + 1).toString();
+    
     setFormData(prev => ({
       ...prev,
-      perMeterPrice: value,
-      sellingPrice: value
+      name: product.name,
+      product_code: product.product_code,
+      category_id: product.category_id,
+      description: product.description,
+      supplier_id: product.supplier_id,
+      lot_number: nextLotNumber,
+      // Reset other fields for new stock entry
+      purchase_price: '',
+      selling_price: '',
+      per_meter_price: '',
+      location_id: '',
+      current_stock: '0',
     }));
   };
 
-  const handlePressOutside = () => {
-    setShowDropdowns({
-      category: false,
-      supplier: false,
-      location: false,
-      paymentStatus: false,
-      unitOfMeasure: false,
-    });
-  };
+  // Reset lot number when product type changes
+  React.useEffect(() => {
+    if (productType === 'new') {
+      setFormData(prev => ({ ...prev, lot_number: '0' }));
+      setSelectedExistingProduct(null);
+    }
+  }, [productType]);
+
+  // Animations
+  React.useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(overlayOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(overlayOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: -screenHeight, duration: 250, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 0.9, duration: 250, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible, slideAnim, overlayOpacity, scaleAnim]);
+
+  // Reset form when opening
+  React.useEffect(() => {
+    if (visible) {
+      if (existingProduct) {
+        setFormData({
+          ...existingProduct,
+          category_id: existingProduct.category_id?.toString() || '',
+          supplier_id: existingProduct.supplier_id?.toString() || '',
+          location_id: existingProduct.location_id?.toString() || '',
+          lot_number: existingProduct.lot_number || '0',
+        });
+      } else {
+        setFormData({
+          name: '',
+          product_code: '',
+          category_id: '',
+          description: '',
+          purchase_price: '',
+          selling_price: '',
+          per_meter_price: '',
+          supplier_id: '',
+          location_id: '',
+          minimum_threshold: '100',
+          current_stock: '0',
+          lot_number: '0',
+          product_status: 'active',
+          wastage_status: false,
+        });
+      }
+      setCurrentStep(0);
+      setProductType('new');
+      setSelectedExistingProduct(null);
+      setProductImages([]);
+      setErrors({});
+    }
+  }, [visible, existingProduct]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.productName.trim()) {
-      newErrors.productName = 'Product name is required';
-    }
+    // Validate required fields
+    Object.entries(fieldConfig).forEach(([field, config]) => {
+      if (config.required && !formData[field as keyof ProductFormData]?.toString().trim()) {
+        newErrors[field] = `${config.label} is required`;
+      }
+    });
 
-    if (!formData.categoryId) {
-      newErrors.categoryId = 'Category is required';
+    // Validate numeric fields
+    if (formData.purchase_price && isNaN(parseFloat(formData.purchase_price))) {
+      newErrors.purchase_price = 'Please enter a valid price';
     }
-
-    if (!formData.purchasePrice || parseFloat(formData.purchasePrice) <= 0) {
-      newErrors.purchasePrice = 'Valid purchase price is required';
-    }
-
-    if (!formData.sellingPrice || parseFloat(formData.sellingPrice) <= 0) {
-      newErrors.sellingPrice = 'Valid selling price is required';
-    }
-
-    if (!formData.supplierId) {
-      newErrors.supplierId = 'Supplier is required';
-    }
-
-    if (!formData.locationId) {
-      newErrors.locationId = 'Location is required';
-    }
-
-    if (!formData.initialQuantity || parseFloat(formData.initialQuantity) <= 0) {
-      newErrors.initialQuantity = 'Valid initial quantity is required';
+    if (formData.selling_price && isNaN(parseFloat(formData.selling_price))) {
+      newErrors.selling_price = 'Please enter a valid price';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async () => {
-    console.log('=== PRODUCT FORM SUBMISSION STARTED ===');
-    console.log('Form data:', formData);
-
+  const onSubmitForm = async () => {
     if (!canAddProduct) {
-      console.log('Permission denied - cannot add product');
       Alert.alert('Permission Denied', 'You do not have permission to add products.');
       return;
     }
 
-    console.log('Validating form...');
     if (!validateForm()) {
-      console.log('Form validation failed');
-      console.log('Validation errors:', errors);
+      Alert.alert('Validation Error', 'Please fill in all required fields correctly.');
       return;
     }
-    console.log('Form validation passed');
 
     setIsLoading(true);
     try {
-      const submitData: CreateProductRequest & { initial_quantity: number; purchase_date: string } = {
-        name: formData.productName,
-        product_code: formData.productCode || undefined,
-        category_id: formData.categoryId || undefined,
-        description: formData.description || undefined,
-        product_image: formData.productImage || undefined,
-        purchase_amount: formData.purchaseAmount ? parseFloat(formData.purchaseAmount) : undefined,
-        purchase_price: parseFloat(formData.purchasePrice),
-        selling_price: parseFloat(formData.sellingPrice),
-        per_meter_price: formData.perMeterPrice ? parseFloat(formData.perMeterPrice) : undefined,
-        supplier_id: formData.supplierId || undefined,
-        location_id: formData.locationId || undefined,
-        minimum_threshold: formData.minimumThreshold ? parseFloat(formData.minimumThreshold) : undefined,
-        payment_status: formData.paymentStatus,
-        paid_amount: formData.paidAmount ? parseFloat(formData.paidAmount) : undefined,
-        due_date: formData.dueDate || undefined,
-        unit_of_measure: formData.unitOfMeasure,
-        width: formData.width ? parseFloat(formData.width) : undefined,
-        weight: formData.weight ? parseFloat(formData.weight) : undefined,
-        color: formData.color || undefined,
-        material: formData.material || undefined,
-        notes: undefined,
-        lot_number: formData.lotNumber,
-        initial_quantity: parseFloat(formData.initialQuantity),
-        purchase_date: formData.purchaseDate,
+      // Transform data for API
+      const productData = {
+        name: formData.name.trim(),
+        product_code: formData.product_code,
+        category_id: parseInt(formData.category_id),
+        description: formData.description?.trim(),
+        purchase_price: parseFloat(formData.purchase_price),
+        selling_price: parseFloat(formData.selling_price),
+        per_meter_price: parseFloat(formData.per_meter_price) || null,
+        supplier_id: parseInt(formData.supplier_id),
+        location_id: parseInt(formData.location_id),
+        minimum_threshold: parseInt(formData.minimum_threshold) || 100,
+        current_stock: parseFloat(formData.current_stock) || 0,
+        product_status: formData.product_status,
+        wastage_status: formData.wastage_status,
+        images: productImages,
       };
 
-      console.log('=== SUBMITTING TO DATABASE ===');
-      console.log('Submit data:', submitData);
-      console.log('onSubmit function exists:', !!onSubmit);
-      console.log('onSubmit function type:', typeof onSubmit);
+      // Mock API call
+      const newProduct = { id: Date.now(), ...productData };
 
-      // Call the onSubmit prop which will handle the database operation
-      if (onSubmit) {
-        console.log('Calling onSubmit handler...');
-        try {
-          await onSubmit(submitData);
-          console.log('onSubmit completed successfully');
-        } catch (onSubmitError) {
-          console.error('ERROR in onSubmit handler:', onSubmitError);
-          throw onSubmitError; // Re-throw to be caught by outer catch
-        }
-      } else {
-        console.error('No submit handler provided');
-        throw new Error('No submit handler provided');
-      }
-
-      console.log('=== SUBMISSION SUCCESSFUL ===');
-      // Reset form and close modal
-      setFormData(initialFormState);
-      setErrors({});
-      setCurrentStep(0);
-      onClose();
-    } catch (error) {
-      console.error('Error in form submission:', error);
-
-      // Type-safe error handling
-      if (error instanceof Error) {
-        console.error('Error stack:', error.stack);
-        console.error('Error details:', {
-          message: error.message,
-          name: error.name,
-          cause: error.cause
-        });
-      }
-
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       Alert.alert(
-        'Error',
-        `Failed to submit form: ${errorMessage}\n\nPlease check your internet connection and try again.`,
-        [{ text: 'OK' }]
+        'Success',
+        `Product "${newProduct.name}" has been ${existingProduct ? 'updated' : 'created'} successfully!`,
+        [{ text: 'OK', onPress: () => { onSubmit(newProduct); onClose(); } }]
       );
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save product';
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const updateFormData = (field: keyof ProductFormData, value: string | boolean) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
   const handleImagePicker = () => {
-    Alert.alert(
-      'Select Image',
-      'Choose an option',
-      [
-        { text: 'Camera', onPress: () => console.log('Camera selected') },
-        { text: 'Gallery', onPress: () => console.log('Gallery selected') },
-        { text: 'Cancel', style: 'cancel' },
-      ]
+    Alert.alert('Add Product Image', 'Choose an option', [
+      { text: 'Camera', onPress: () => console.log('Camera selected') },
+      { text: 'Gallery', onPress: () => console.log('Gallery selected') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const renderStepContent = () => {
+    const currentStepConfig = formSteps[currentStep];
+    const currentStepFields = currentStepConfig.fields;
+
+    return (
+      <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
+        {/* Product Type Selection - Step 0 */}
+        {currentStep === 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+              <Package size={18} color={theme.colors.primary} /> Choose Product Type
+            </Text>
+            
+            <View style={styles.productTypeContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.productTypeOption,
+                  {
+                    backgroundColor: productType === 'new' ? theme.colors.primary + '20' : theme.colors.backgroundSecondary,
+                    borderColor: productType === 'new' ? theme.colors.primary : theme.colors.border,
+                  }
+                ]}
+                onPress={() => setProductType('new')}
+              >
+                <View style={[styles.productTypeIcon, { backgroundColor: theme.colors.primary + '20' }]}>
+                  <Package size={24} color={theme.colors.primary} />
+                </View>
+                <View style={styles.productTypeContent}>
+                  <Text style={[styles.productTypeTitle, { color: theme.colors.text.primary }]}>
+                    Add New Product
+                  </Text>
+                  <Text style={[styles.productTypeDescription, { color: theme.colors.text.secondary }]}>
+                    Create a completely new product with all details
+                  </Text>
+                </View>
+                <View style={[
+                  styles.radioButton,
+                  {
+                    borderColor: theme.colors.primary,
+                    backgroundColor: productType === 'new' ? theme.colors.primary : 'transparent'
+                  }
+                ]}>
+                  {productType === 'new' && <Text style={styles.radioButtonCheck}>✓</Text>}
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.productTypeOption,
+                  {
+                    backgroundColor: productType === 'existing' ? theme.colors.primary + '20' : theme.colors.backgroundSecondary,
+                    borderColor: productType === 'existing' ? theme.colors.primary : theme.colors.border,
+                  }
+                ]}
+                onPress={() => setProductType('existing')}
+              >
+                <View style={[styles.productTypeIcon, { backgroundColor: theme.colors.status.success + '20' }]}>
+                  <Package size={24} color={theme.colors.status.success} />
+                </View>
+                <View style={styles.productTypeContent}>
+                  <Text style={[styles.productTypeTitle, { color: theme.colors.text.primary }]}>
+                    Add Existing Product
+                  </Text>
+                  <Text style={[styles.productTypeDescription, { color: theme.colors.text.secondary }]}>
+                    Restock an existing product with new lot
+                  </Text>
+                </View>
+                <View style={[
+                  styles.radioButton,
+                  {
+                    borderColor: theme.colors.primary,
+                    backgroundColor: productType === 'existing' ? theme.colors.primary : 'transparent'
+                  }
+                ]}>
+                  {productType === 'existing' && <Text style={styles.radioButtonCheck}>✓</Text>}
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Existing Product Selection */}
+            {productType === 'existing' && (
+              <View style={styles.existingProductSection}>
+                <Text style={[styles.label, styles.requiredLabel, { color: theme.colors.status.error }]}>
+                  Select Existing Product *
+                </Text>
+                <DropdownField
+                  value={selectedExistingProduct?.id || ''}
+                  onChange={(value) => {
+                    const product = mockExistingProducts.find(p => p.id === value);
+                    if (product) handleExistingProductSelect(product);
+                  }}
+                  options={mockExistingProducts}
+                  placeholder="Search and select a product to restock..."
+                  theme={theme}
+                  displayKey="name"
+                  searchable={true}
+                />
+                {selectedExistingProduct && (
+                  <View style={[styles.selectedProductInfo, { backgroundColor: theme.colors.backgroundSecondary }]}>
+                    <Text style={[styles.selectedProductTitle, { color: theme.colors.text.primary }]}>
+                      Selected: {selectedExistingProduct.name}
+                    </Text>
+                    <Text style={[styles.selectedProductDetails, { color: theme.colors.text.secondary }]}>
+                      Code: {selectedExistingProduct.product_code} • Category: {selectedExistingProduct.category_name}
+                    </Text>
+                    <Text style={[styles.selectedProductDetails, { color: theme.colors.text.secondary }]}>
+                      Supplier: {selectedExistingProduct.supplier_name}
+                    </Text>
+                    <Text style={[styles.selectedProductDetails, { color: theme.colors.text.secondary }]}>
+                      Next Lot: {selectedExistingProduct.last_lot_number + 1}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Special handling for pricing step */}
+        {currentStep === 2 && (
+          <PriceCalculator formData={formData} theme={theme} />
+        )}
+
+        {/* Images section for step 4 */}
+        {currentStep === 4 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+              <Sparkles size={18} color={theme.colors.primary} /> Product Images
+            </Text>
+            <TouchableOpacity
+              style={[styles.imageUploadContainer, { borderColor: theme.colors.primary + '40' }]}
+              onPress={handleImagePicker}
+            >
+              <View style={styles.imageUploadContent}>
+                <View style={[styles.imageUploadIcon, { backgroundColor: theme.colors.primary + '20' }]}>
+                  <Camera size={32} color={theme.colors.primary} />
+                </View>
+                <Text style={[styles.imageUploadText, { color: theme.colors.text.primary }]}>
+                  Add product images
+                </Text>
+                <Text style={[styles.imageUploadSubtext, { color: theme.colors.text.muted }]}>
+                  PNG, JPG up to 10MB each
+                </Text>
+                <View style={[styles.uploadButton, { backgroundColor: theme.colors.primary }]}>
+                  <Upload size={16} color="#FFFFFF" />
+                  <Text style={styles.uploadButtonText}>Choose Files</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Skip product type selection step for form fields */}
+        {currentStep > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+              {React.createElement(currentStepConfig.icon, { size: 18, color: theme.colors.primary })}
+              {' '}{currentStepConfig.title}
+            </Text>
+
+            {currentStepFields.map((field) => {
+              if (field === 'images' || field === 'product_type_selection') return null; // Already handled above
+
+              const config = fieldConfig[field];
+              const isRowField = (field === 'purchase_price' || field === 'lot_number');
+
+              // For existing products, make certain fields read-only
+              const isReadOnlyForExisting = productType === 'existing' && 
+                ['name', 'product_code', 'category_id', 'description'].includes(field);
+
+              if (isRowField && field === 'purchase_price') {
+                return (
+                  <View key={field} style={styles.addressRow}>
+                    <View style={[styles.addressInput, { zIndex: 1002 }]}>
+                      <Text style={[
+                        styles.label,
+                        config?.required && styles.requiredLabel,
+                        { color: config?.required ? theme.colors.status.error : theme.colors.text.primary }
+                      ]}>
+                        {config?.label} {config?.required && '*'}
+                      </Text>
+                      <FormInput
+                        field={field}
+                        fieldConfig={fieldConfig}
+                        value={formData[field as keyof ProductFormData]}
+                        onChangeText={(value) => updateFormData(field as keyof ProductFormData, value)}
+                        onBlur={() => { }}
+                        errors={errors}
+                        theme={theme}
+                      />
+                      {errors[field] && (
+                        <Text style={[styles.errorText, { color: theme.colors.status.error }]}>
+                          {errors[field]}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={[styles.addressInput, { zIndex: 1001 }]}>
+                      <Text style={[
+                        styles.label,
+                        fieldConfig.selling_price?.required && styles.requiredLabel,
+                        { color: fieldConfig.selling_price?.required ? theme.colors.status.error : theme.colors.text.primary }
+                      ]}>
+                        {fieldConfig.selling_price?.label} {fieldConfig.selling_price?.required && '*'}
+                      </Text>
+                      <FormInput
+                        field="selling_price"
+                        fieldConfig={fieldConfig}
+                        value={formData.selling_price}
+                        onChangeText={(value) => updateFormData('selling_price', value)}
+                        onBlur={() => { }}
+                        errors={errors}
+                        theme={theme}
+                      />
+                      {errors.selling_price && (
+                        <Text style={[styles.errorText, { color: theme.colors.status.error }]}>
+                          {errors.selling_price}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              }
+
+              if (isRowField && field === 'lot_number') {
+                return (
+                  <View key={field} style={styles.addressRow}>
+                    <View style={[styles.addressInput, { zIndex: 1001 }]}>
+                      <Text style={[styles.label, { color: theme.colors.text.primary }]}>
+                        {config?.label}
+                        {config?.info && (
+                          <Info size={12} color={theme.colors.text.muted} style={{ marginLeft: 4 }} />
+                        )}
+                      </Text>
+                      <FormInput
+                        field={field}
+                        fieldConfig={fieldConfig}
+                        value={formData[field as keyof ProductFormData]}
+                        onChangeText={(value) => updateFormData(field as keyof ProductFormData, value)}
+                        onBlur={() => { }}
+                        errors={errors}
+                        theme={theme}
+                      />
+                      {config?.info && (
+                        <Text style={[styles.infoText, { color: theme.colors.text.muted }]}>
+                          {config.info}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={[styles.addressInput, { zIndex: 1000 }]}>
+                      <Text style={[styles.label, { color: theme.colors.text.primary }]}>
+                        {fieldConfig.current_stock?.label}
+                      </Text>
+                      <FormInput
+                        field="current_stock"
+                        fieldConfig={fieldConfig}
+                        value={formData.current_stock}
+                        onChangeText={(value) => updateFormData('current_stock', value)}
+                        onBlur={() => { }}
+                        errors={errors}
+                        theme={theme}
+                      />
+                    </View>
+                  </View>
+                );
+              }
+
+              if (field === 'selling_price' || field === 'current_stock') return null; // Already rendered in row
+
+              // Assign higher z-index to fields that appear earlier in the form
+              const fieldIndex = currentStepFields.indexOf(field);
+              const zIndexValue = 2000 - fieldIndex * 100; // Higher z-index for earlier fields
+
+              return (
+                <View key={field} style={[styles.inputGroup, { zIndex: zIndexValue }]}>
+                  <Text style={[
+                    styles.label,
+                    config?.required && styles.requiredLabel,
+                    { color: config?.required ? theme.colors.status.error : theme.colors.text.primary }
+                  ]}>
+                    {config?.label} {config?.required && '*'}
+                    {config?.info && (
+                      <Info size={12} color={theme.colors.text.muted} style={{ marginLeft: 4 }} />
+                    )}
+                    {isReadOnlyForExisting && (
+                      <Text style={[styles.readOnlyIndicator, { color: theme.colors.text.muted }]}>
+                        {' '}(Auto-filled)
+                      </Text>
+                    )}
+                  </Text>
+                  <FormInput
+                    field={field}
+                    fieldConfig={{
+                      ...fieldConfig,
+                      [field]: {
+                        ...config,
+                        disabled: isReadOnlyForExisting || config?.disabled
+                      }
+                    }}
+                    value={formData[field as keyof ProductFormData]}
+                    onChangeText={(value) => updateFormData(field as keyof ProductFormData, value)}
+                    onBlur={() => { }}
+                    errors={errors}
+                    theme={theme}
+                  />
+                  {errors[field] && (
+                    <Text style={[styles.errorText, { color: theme.colors.status.error }]}>
+                      {errors[field]}
+                    </Text>
+                  )}
+                  {config?.info && (
+                    <Text style={[styles.infoText, { color: theme.colors.text.muted }]}>
+                      {config.info}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
     );
   };
 
-  const renderSearchableDropdown = (
-    type: 'category' | 'supplier' | 'location',
-    items: any[],
-    value: string,
-    onSelect: (item: any) => void,
-    placeholder: string
-  ) => {
-    try {
-      const searchText = searchTexts[type] || '';
-
-      // Debug logging
-      if (type === 'supplier') {
-        console.log('Supplier dropdown - items:', items);
-        console.log('Supplier dropdown - value:', value);
-        console.log('Supplier dropdown - searchText:', searchText);
-      }
-
-      const filteredItems = (items || []).filter(item => {
-        if (!item || typeof item !== 'object') return false;
-        const itemName = item?.name;
-        if (!itemName || typeof itemName !== 'string') return false;
-        return itemName.toLowerCase().includes(searchText.toLowerCase());
-      });
-
-      return (
-        <View style={styles.dropdownContainer}>
-          <View style={[
-            styles.searchInputContainer,
-            { borderColor: errors[type] ? theme.colors.status.error : theme.colors.primary + '30' },
-            showDropdowns[type] && styles.searchInputContainerActive,
-          ]}>
-            <TextInput
-              style={styles.searchInput}
-              value={showDropdowns[type] ? searchText : String(value || '')}
-              onChangeText={(text) => {
-                setSearchTexts(prev => ({ ...prev, [type]: text }));
-                if (!showDropdowns[type]) {
-                  const updatedDropdowns = {
-                    category: false,
-                    supplier: false,
-                    location: false,
-                    paymentStatus: false,
-                    unitOfMeasure: false,
-                  };
-                  setShowDropdowns({
-                    ...updatedDropdowns,
-                    [type]: true
-                  });
-                }
-              }}
-              onFocus={() => {
-                const updatedDropdowns = {
-                  category: false,
-                  supplier: false,
-                  location: false,
-                  paymentStatus: false,
-                  unitOfMeasure: false,
-                };
-                setShowDropdowns({
-                  ...updatedDropdowns,
-                  [type]: true
-                });
-              }}
-              placeholder={String(value || placeholder || 'Search...')}
-              placeholderTextColor={theme.colors.text.muted}
-            />
-            <TouchableOpacity
-              style={styles.dropdownIconContainer}
-              onPress={() => {
-                const updatedDropdowns = {
-                  category: false,
-                  supplier: false,
-                  location: false,
-                  paymentStatus: false,
-                  unitOfMeasure: false,
-                };
-                setShowDropdowns({
-                  ...updatedDropdowns,
-                  [type]: !showDropdowns[type]
-                });
-              }}
-            >
-              <ChevronDown
-                size={20}
-                color={theme.colors.text.muted}
-                style={[
-                  styles.dropdownIcon,
-                  showDropdowns[type] && { transform: [{ rotate: '180deg' }] }
-                ]}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {showDropdowns[type] && (
-            <View
-              style={[
-                styles.dropdownList,
-                { backgroundColor: theme.colors.background }
-              ]}
-            >
-              <ScrollView
-                nestedScrollEnabled={true}
-                style={{ maxHeight: 200 }}
-                showsVerticalScrollIndicator={false}
-                bounces={true}
-                scrollEventThrottle={16}
-                decelerationRate="normal"
-              >
-                {filteredItems.length > 0 ? filteredItems.map((item, index) => {
-                  if (!item || typeof item !== 'object') {
-                    console.warn('Invalid item in dropdown:', item);
-                    return null;
-                  }
-
-                  return (
-                    <TouchableOpacity
-                      key={String(item?.id || index)}
-                      style={[
-                        styles.dropdownItem,
-                        index === filteredItems.length - 1 && { borderBottomWidth: 0 }
-                      ]}
-                      onPress={() => {
-                        console.log('Dropdown item clicked:', type, item);
-                        if (item && typeof onSelect === 'function') {
-                          onSelect(item);
-                          setSearchTexts(prev => ({ ...prev, [type]: '' }));
-                          setShowDropdowns(prev => ({ ...prev, [type]: false }));
-                        }
-                      }}
-                    >
-                      <View style={styles.dropdownItemContent}>
-                        {(type === 'category' && item?.name && categoryIcons[item.name]) && (
-                          <Text style={styles.dropdownItemIcon}>{String(categoryIcons[item.name] || '')}</Text>
-                        )}
-                        {(type === 'location' && item?.location_type && locationIcons[item.location_type]) && (
-                          <Text style={styles.dropdownItemIcon}>{String(locationIcons[item.location_type] || '')}</Text>
-                        )}
-                        <View style={styles.dropdownItemTextContainer}>
-                          <Text style={styles.dropdownItemText}>
-                            {String(item?.name || 'Unknown')}
-                          </Text>
-                          {item?.rating && typeof item.rating !== 'undefined' && (
-                            <View style={styles.ratingContainer}>
-                              <Star size={12} color="#FFD700" fill="#FFD700" />
-                              <Text style={styles.ratingText}>{String(item.rating)}</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                }) : (
-                  <View style={styles.noResultsContainer}>
-                    <Text style={styles.noResultsText}>No results found</Text>
-                  </View>
-                )}
-              </ScrollView>
-            </View>
-          )}
-        </View>
-      );
-    } catch (error) {
-      console.error('Error in renderSearchableDropdown:', error);
-      return (
-        <View style={styles.dropdownContainer}>
-          <Text style={styles.errorText}>Error loading dropdown</Text>
-        </View>
-      );
-    }
-  };
-
-  const renderEnhancedDropdown = (
-    type: keyof typeof showDropdowns,
-    items: any[],
-    value: string,
-    onSelect: (item: any) => void,
-    placeholder: string
-  ) => (
-    <View style={styles.dropdownContainer}>
-      <TouchableOpacity
-        style={[
-          styles.dropdownButton,
-          { borderColor: errors[type] ? theme.colors.status.error : theme.colors.primary + '30' },
-          showDropdowns[type] && styles.dropdownButtonActive,
-        ]}
-        onPress={() => {
-          const updatedDropdowns = {
-            category: false,
-            supplier: false,
-            location: false,
-            paymentStatus: false,
-            unitOfMeasure: false,
-          };
-          setShowDropdowns({
-            ...updatedDropdowns,
-            [type]: !showDropdowns[type]
-          });
-        }}
-      >
-        <Text style={[
-          styles.dropdownButtonText,
-          { color: value ? theme.colors.text.primary : theme.colors.text.muted }
-        ]}>
-          {String(value || placeholder || 'Select option')}
-        </Text>
-        <ChevronDown
-          size={20}
-          color={theme.colors.text.muted}
-          style={[
-            styles.dropdownIcon,
-            showDropdowns[type] && { transform: [{ rotate: '180deg' }] }
-          ]}
-        />
-      </TouchableOpacity>
-
-      {showDropdowns[type] && (
-        <View
-          style={[
-            styles.dropdownList,
-            { backgroundColor: theme.colors.background }
-          ]}
-        >
-          <ScrollView
-            nestedScrollEnabled={true}
-            style={{ maxHeight: 200 }}
-            showsVerticalScrollIndicator={false}
-            bounces={true}
-            scrollEventThrottle={16}
-            decelerationRate="normal"
-          >
-            {items.map((item, index) => (
-              <TouchableOpacity
-                key={item.id || item}
-                style={[
-                  styles.dropdownItem,
-                  index === items.length - 1 && { borderBottomWidth: 0 }
-                ]}
-                onPress={() => {
-                  onSelect(item);
-                  setShowDropdowns(prev => ({ ...prev, [type]: false }));
-                }}
-              >
-                <View style={styles.dropdownItemContent}>
-                  {item?.icon && <Text style={styles.dropdownItemIcon}>{String(item.icon)}</Text>}
-                  <View style={styles.dropdownItemTextContainer}>
-                    <Text style={styles.dropdownItemText}>
-                      {String(typeof item === 'string' ? item : (item?.name || 'Unknown'))}
-                    </Text>
-                    {item?.rating && (
-                      <View style={styles.ratingContainer}>
-                        <Star size={12} color="#FFD700" fill="#FFD700" />
-                        <Text style={styles.ratingText}>{String(item.rating || '')}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-    </View>
-  );
-
-  const renderStepIndicator = () => (
-    <View style={styles.stepIndicator}>
-      {steps.map((step, index) => (
-        <View key={index} style={styles.stepItem}>
-          <View style={[
-            styles.stepCircle,
-            index <= currentStep && styles.stepCircleActive
-          ]}>
-            <step.icon
-              size={16}
-              color={index <= currentStep ? '#FFFFFF' : theme.colors.text.muted}
-            />
-          </View>
-          <Text style={[
-            styles.stepText,
-            index <= currentStep && styles.stepTextActive
-          ]}>
-            {step.title}
-          </Text>
-          {index < steps.length - 1 && (
-            <View style={[
-              styles.stepLine,
-              index < currentStep && styles.stepLineActive
-            ]} />
-          )}
-        </View>
-      ))}
-    </View>
-  );
-
-  const renderCurrentStep = () => {
-    switch (currentStep) {
-      case 0:
-        return renderBasicInfoStep();
-      case 1:
-        return renderPricingStep();
-      case 2:
-        return renderInventoryStep();
-      case 3:
-        return renderPaymentStep();
-      default:
-        return renderBasicInfoStep();
-    }
-  };
-
-  const renderBasicInfoStep = () => (
-    <View style={styles.stepContent}>
-      {/* Product Image */}
-      <View style={styles.section}>
-        <View style={styles.sectionTitleContainer}>
-          <Sparkles size={18} color={theme.colors.primary} />
-          <Text style={styles.sectionTitle}>Product Image</Text>
-        </View>
-        <TouchableOpacity style={styles.imageUploadContainer} onPress={handleImagePicker}>
-          <View style={styles.imageUploadContent}>
-            <View style={styles.imageUploadIcon}>
-              <Camera size={32} color={theme.colors.primary} />
-            </View>
-            <Text style={styles.imageUploadText}>Add product photo</Text>
-            <Text style={styles.imageUploadSubtext}>PNG, JPG up to 10MB</Text>
-            <View style={styles.uploadButton}>
-              <Upload size={16} color="#FFFFFF" />
-              <Text style={styles.uploadButtonText}>Choose File</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* Basic Information */}
-      <View style={styles.section}>
-        <View style={styles.sectionTitleContainer}>
-          <Package size={18} color={theme.colors.primary} />
-          <Text style={styles.sectionTitle}>Basic Information</Text>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, styles.requiredLabel]}>Product Name *</Text>
-          <TextInput
-            style={[styles.input, errors.productName && styles.inputError]}
-            value={formData.productName}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, productName: text }))}
-            placeholder="Enter product name"
-            placeholderTextColor={theme.colors.text.muted}
-          />
-          {errors.productName && <Text style={styles.errorText}>{errors.productName}</Text>}
-        </View>
-
-        <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Product Code</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.productCode}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, productCode: text }))}
-              placeholder="Auto-generated"
-              placeholderTextColor={theme.colors.text.muted}
-            />
-          </View>
-
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={[styles.label, styles.requiredLabel]}>Category *</Text>
-            {renderSearchableDropdown(
-              'category',
-              categories,
-              String(categories.find(c => c.id === formData.categoryId)?.name || ''),
-              (item) => setFormData(prev => ({ ...prev, categoryId: item.id })),
-              'Search or select category'
-            )}
-            {errors.categoryId && <Text style={styles.errorText}>{errors.categoryId}</Text>}
-          </View>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Description</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={formData.description}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
-            placeholder="Product description"
-            placeholderTextColor={theme.colors.text.muted}
-            multiline
-          />
-        </View>
-      </View>
-    </View>
-  );
-
-  const renderPricingStep = () => (
-    <View style={styles.stepContent}>
-      <View style={styles.section}>
-        <View style={styles.sectionTitleContainer}>
-          <DollarSign size={18} color={theme.colors.primary} />
-          <Text style={styles.sectionTitle}>Pricing Information</Text>
-        </View>
-
-        <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Purchase Amount</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.purchaseAmount}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, purchaseAmount: text }))}
-              placeholder="Total purchase amount"
-              placeholderTextColor={theme.colors.text.muted}
-              keyboardType="numeric"
-            />
-          </View>
-
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={[styles.label, styles.requiredLabel]}>Initial Quantity *</Text>
-            <TextInput
-              style={[styles.input, errors.initialQuantity && styles.inputError]}
-              value={formData.initialQuantity}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, initialQuantity: text }))}
-              placeholder="0"
-              placeholderTextColor={theme.colors.text.muted}
-              keyboardType="numeric"
-            />
-            {errors.initialQuantity && <Text style={styles.errorText}>{errors.initialQuantity}</Text>}
-          </View>
-        </View>
-
-        <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={[styles.label, styles.requiredLabel]}>Purchase Price *</Text>
-            <TextInput
-              style={[styles.input, errors.purchasePrice && styles.inputError]}
-              value={formData.purchasePrice}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, purchasePrice: text }))}
-              placeholder="0.00"
-              placeholderTextColor={theme.colors.text.muted}
-              keyboardType="numeric"
-            />
-            {errors.purchasePrice && <Text style={styles.errorText}>{errors.purchasePrice}</Text>}
-          </View>
-
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={[styles.label, styles.requiredLabel]}>Selling Price *</Text>
-            <TextInput
-              style={[styles.input, errors.sellingPrice && styles.inputError]}
-              value={formData.sellingPrice}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, sellingPrice: text }))}
-              placeholder="0.00"
-              placeholderTextColor={theme.colors.text.muted}
-              keyboardType="numeric"
-            />
-            {errors.sellingPrice && <Text style={styles.errorText}>{errors.sellingPrice}</Text>}
-          </View>
-        </View>
-
-        <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Per Meter Price</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.perMeterPrice}
-              onChangeText={handlePerMeterPriceChange}
-              placeholder="Auto-calculated"
-              placeholderTextColor={theme.colors.text.muted}
-              keyboardType="numeric"
-            />
-          </View>
-
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Unit of Measure</Text>
-            {renderEnhancedDropdown(
-              'unitOfMeasure',
-              unitOfMeasureOptions,
-              getUnitOfMeasureName(formData.unitOfMeasure),
-              (item) => setFormData(prev => ({ ...prev, unitOfMeasure: item.id as any })),
-              'Select unit'
-            )}
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-
-  const renderInventoryStep = () => (
-    <View style={styles.stepContent}>
-      <View style={styles.section}>
-        <View style={styles.sectionTitleContainer}>
-          <MapPin size={18} color={theme.colors.primary} />
-          <Text style={styles.sectionTitle}>Inventory Information</Text>
-        </View>
-
-        <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Lot Number</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.lotNumber}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, lotNumber: text }))}
-              placeholder="0"
-              placeholderTextColor={theme.colors.text.muted}
-              keyboardType="numeric"
-            />
-          </View>
-
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Minimum Threshold</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.minimumThreshold}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, minimumThreshold: text }))}
-              placeholder="100"
-              placeholderTextColor={theme.colors.text.muted}
-              keyboardType="numeric"
-            />
-          </View>
-        </View>
-
-        <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={[styles.label, styles.requiredLabel]}>Supplier *</Text>
-            {/* Simple safe supplier dropdown */}
-            <View style={styles.dropdownContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.dropdownButton,
-                  { borderColor: errors.supplierId ? theme.colors.status.error : theme.colors.primary + '30' },
-                  showDropdowns.supplier && styles.dropdownButtonActive,
-                ]}
-                onPress={() => {
-                  setShowDropdowns(prev => ({
-                    category: false,
-                    supplier: !prev.supplier,
-                    location: false,
-                    paymentStatus: false,
-                    unitOfMeasure: false,
-                  }));
-                }}
-              >
-                <Text style={[
-                  styles.dropdownButtonText,
-                  { color: formData.supplierId ? theme.colors.text.primary : theme.colors.text.muted }
-                ]}>
-                  {formData.supplierId
-                    ? (suppliers?.find(s => s?.id === formData.supplierId)?.name || 'Unknown Supplier')
-                    : 'Search or select supplier'
-                  }
-                </Text>
-                <ChevronDown
-                  size={20}
-                  color={theme.colors.text.muted}
-                  style={[
-                    styles.dropdownIcon,
-                    showDropdowns.supplier && { transform: [{ rotate: '180deg' }] }
-                  ]}
-                />
-              </TouchableOpacity>
-
-              {showDropdowns.supplier && (
-                <View style={[styles.dropdownList, { backgroundColor: theme.colors.background }]}>
-                  <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
-                    {(suppliers || []).map((supplier, index) => (
-                      <TouchableOpacity
-                        key={supplier?.id || index}
-                        style={[
-                          styles.dropdownItem,
-                          index === suppliers.length - 1 && { borderBottomWidth: 0 }
-                        ]}
-                        onPress={() => {
-                          setFormData(prev => ({ ...prev, supplierId: supplier?.id || '' }));
-                          setShowDropdowns(prev => ({ ...prev, supplier: false }));
-                        }}
-                      >
-                        <View style={styles.dropdownItemContent}>
-                          <View style={styles.dropdownItemTextContainer}>
-                            <Text style={styles.dropdownItemText}>
-                              {supplier?.name || 'Unknown Supplier'}
-                            </Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
-            {errors.supplierId && <Text style={styles.errorText}>{errors.supplierId}</Text>}
-          </View>
-
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={[styles.label, styles.requiredLabel]}>Location *</Text>
-            {renderSearchableDropdown(
-              'location',
-              locations,
-              String(locations.find(l => l.id === formData.locationId)?.name || ''),
-              (item) => setFormData(prev => ({ ...prev, locationId: item.id })),
-              'Search or select location'
-            )}
-            {errors.locationId && <Text style={styles.errorText}>{errors.locationId}</Text>}
-          </View>
-        </View>
-
-        <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Purchase Date</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.purchaseDate}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, purchaseDate: text }))}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={theme.colors.text.muted}
-            />
-          </View>
-
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Lot Number</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.lotNumber}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, lotNumber: text }))}
-              placeholder="1"
-              placeholderTextColor={theme.colors.text.muted}
-            />
-          </View>
-        </View>
-
-        <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Color</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.color}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, color: text }))}
-              placeholder="Product color"
-              placeholderTextColor={theme.colors.text.muted}
-            />
-          </View>
-
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Material</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.material}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, material: text }))}
-              placeholder="Material type"
-              placeholderTextColor={theme.colors.text.muted}
-            />
-          </View>
-        </View>
-
-        <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Width (cm)</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.width}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, width: text }))}
-              placeholder="0"
-              placeholderTextColor={theme.colors.text.muted}
-              keyboardType="numeric"
-            />
-          </View>
-
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Weight (kg)</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.weight}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, weight: text }))}
-              placeholder="0"
-              placeholderTextColor={theme.colors.text.muted}
-              keyboardType="numeric"
-            />
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-
-  const renderPaymentStep = () => (
-    <View style={styles.stepContent}>
-      <View style={styles.section}>
-        <View style={styles.sectionTitleContainer}>
-          <Calendar size={18} color={theme.colors.primary} />
-          <Text style={styles.sectionTitle}>Payment Information</Text>
-        </View>
-
-        <View style={styles.paymentSection}>
-          <Text style={styles.label}>Payment Status</Text>
-          <View style={styles.paymentStatusButtons}>
-            {[
-              { key: 'paid', label: 'Paid', color: '#10B981', icon: '✅' },
-              { key: 'partial', label: 'Partial', color: '#F59E0B', icon: '⏳' },
-              { key: 'pending', label: 'Pending', color: '#EF4444', icon: '⭕' }
-            ].map((status) => (
-              <TouchableOpacity
-                key={status.key}
-                style={[
-                  styles.paymentStatusButton,
-                  formData.paymentStatus === status.key && {
-                    backgroundColor: status.color + '20',
-                    borderColor: status.color,
-                  },
-                ]}
-                onPress={() => setFormData(prev => ({ ...prev, paymentStatus: status.key as any }))}
-              >
-                <Text style={styles.paymentStatusIcon}>{status.icon}</Text>
-                <Text style={[
-                  styles.paymentStatusButtonText,
-                  formData.paymentStatus === status.key && { color: status.color },
-                ]}>
-                  {status.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {formData.paymentStatus === 'partial' && (
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, styles.flex1]}>
-                <Text style={styles.label}>Paid Amount</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.paidAmount}
-                  onChangeText={(text) => setFormData(prev => ({ ...prev, paidAmount: text }))}
-                  placeholder="0.00"
-                  placeholderTextColor={theme.colors.text.muted}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={[styles.inputGroup, styles.flex1]}>
-                <Text style={styles.label}>Due Date</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.dueDate}
-                  onChangeText={(text) => setFormData(prev => ({ ...prev, dueDate: text }))}
-                  placeholder="DD/MM/YYYY"
-                  placeholderTextColor={theme.colors.text.muted}
-                />
-              </View>
-            </View>
-          )}
-        </View>
-      </View>
-    </View>
-  );
-
-  if (!canAddProduct) {
-    return null;
-  }
-
-  const styles = StyleSheet.create({
-    overlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'flex-start',
-      paddingTop: 50,
-    },
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      marginHorizontal: 8,
-      elevation: 10,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 12,
-    },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-      backgroundColor: theme.colors.primary,
-      elevation: 4,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-    },
-    headerTitle: {
-      fontSize: 22,
-      fontWeight: '700',
-      color: '#FFFFFF',
-      letterSpacing: 0.5,
-    },
-    closeButton: {
-      padding: 8,
-      borderRadius: 20,
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    },
-    stepIndicator: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingVertical: 20,
-      backgroundColor: theme.colors.backgroundSecondary,
-    },
-    stepItem: {
-      flex: 1,
-      alignItems: 'center',
-      position: 'relative',
-    },
-    stepCircle: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.colors.border,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    stepCircleActive: {
-      backgroundColor: theme.colors.primary,
-    },
-    stepText: {
-      fontSize: 12,
-      color: theme.colors.text.muted,
-      textAlign: 'center',
-      fontWeight: '500',
-    },
-    stepTextActive: {
-      color: theme.colors.primary,
-      fontWeight: '600',
-    },
-    stepLine: {
-      position: 'absolute',
-      top: 20,
-      right: -50,
-      width: 100,
-      height: 2,
-      backgroundColor: theme.colors.border,
-      zIndex: -1,
-    },
-    stepLineActive: {
-      backgroundColor: theme.colors.primary,
-    },
-    content: {
-      flex: 1,
-    },
-    stepContent: {
-      flex: 1,
-      paddingHorizontal: 20,
-    },
-    section: {
-      marginBottom: 24,
-    },
-    sectionTitleContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 16,
-      gap: 8,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: theme.colors.text.primary,
-      letterSpacing: 0.3,
-    },
-    imageUploadContainer: {
-      height: 140,
-      borderRadius: 16,
-      borderWidth: 2,
-      borderStyle: 'dashed',
-      borderColor: theme.colors.primary + '40',
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: theme.colors.primary + '08',
-      marginBottom: 16,
-    },
-    imageUploadContent: {
-      alignItems: 'center',
-    },
-    imageUploadIcon: {
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      backgroundColor: theme.colors.primary + '20',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 12,
-    },
-    imageUploadText: {
-      fontSize: 16,
-      color: theme.colors.text.primary,
-      fontWeight: '600',
-      marginBottom: 4,
-    },
-    imageUploadSubtext: {
-      fontSize: 12,
-      color: theme.colors.text.muted,
-      marginBottom: 12,
-    },
-    uploadButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: theme.colors.primary,
-      paddingHorizontal: 20,
-      paddingVertical: 10,
-      borderRadius: 25,
-      elevation: 2,
-      shadowColor: theme.colors.primary,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.3,
-      shadowRadius: 4,
-    },
-    uploadButtonText: {
-      color: '#FFFFFF',
-      fontSize: 14,
-      fontWeight: '600',
-      marginLeft: 8,
-    },
-    inputGroup: {
-      marginBottom: 20,
-    },
-    label: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.colors.text.primary,
-      marginBottom: 8,
-      letterSpacing: 0.2,
-    },
-    requiredLabel: {
-      color: theme.colors.status.error,
-    },
-    input: {
-      borderWidth: 2,
-      borderColor: theme.colors.border,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      fontSize: 16,
-      color: theme.colors.text.primary,
-      backgroundColor: theme.colors.backgroundTertiary,
-      fontWeight: '500',
-    },
-    inputError: {
-      borderColor: theme.colors.status.error,
-    },
-    textArea: {
-      height: 100,
-      textAlignVertical: 'top',
-    },
-    errorText: {
-      fontSize: 12,
-      color: theme.colors.status.error,
-      marginTop: 6,
-      fontWeight: '500',
-    },
-    row: {
-      flexDirection: 'row',
-      gap: 16,
-    },
-    flex1: {
-      flex: 1,
-    },
-    dropdownContainer: {
-      position: 'relative',
-      zIndex: 99999,
-    },
-    searchInputContainer: {
-      borderWidth: 2,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      backgroundColor: theme.colors.backgroundTertiary,
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    searchInputContainerActive: {
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.colors.primary + '10',
-    },
-    searchInput: {
-      flex: 1,
-      fontSize: 16,
-      color: theme.colors.text.primary,
-      fontWeight: '500',
-    },
-    dropdownButton: {
-      borderWidth: 2,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      backgroundColor: theme.colors.backgroundTertiary,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    dropdownButtonActive: {
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.colors.primary + '10',
-    },
-    dropdownButtonText: {
-      fontSize: 16,
-      flex: 1,
-      fontWeight: '500',
-    },
-    dropdownIcon: {
-      marginLeft: 8,
-    },
-    dropdownIconContainer: {
-      padding: 4,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    dropdownList: {
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      right: 0,
-      borderWidth: 2,
-      borderColor: theme.colors.primary + '30',
-      borderRadius: 12,
-      marginTop: 4,
-      maxHeight: 200,
-      zIndex: 999999,
-      elevation: 999999,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-    },
-    dropdownItem: {
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border + '50',
-    },
-    dropdownItemContent: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    dropdownItemIcon: {
-      fontSize: 20,
-      marginRight: 12,
-    },
-    dropdownItemTextContainer: {
-      flex: 1,
-    },
-    dropdownItemText: {
-      fontSize: 16,
-      color: theme.colors.text.primary,
-      fontWeight: '500',
-    },
-    ratingContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 2,
-    },
-    ratingText: {
-      fontSize: 12,
-      color: '#FFD700',
-      marginLeft: 4,
-      fontWeight: '600',
-    },
-    noResultsContainer: {
-      padding: 20,
-      alignItems: 'center',
-    },
-    noResultsText: {
-      fontSize: 14,
-      color: theme.colors.text.muted,
-      fontStyle: 'italic',
-    },
-    paymentSection: {
-      backgroundColor: theme.colors.backgroundSecondary,
-      padding: 20,
-      borderRadius: 16,
-      marginBottom: 16,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    paymentStatusButtons: {
-      flexDirection: 'row',
-      gap: 12,
-      marginBottom: 16,
-    },
-    paymentStatusButton: {
-      flex: 1,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      borderRadius: 12,
-      borderWidth: 2,
-      borderColor: theme.colors.border,
-      alignItems: 'center',
-      backgroundColor: theme.colors.backgroundTertiary,
-    },
-    paymentStatusIcon: {
-      fontSize: 16,
-      marginBottom: 4,
-    },
-    paymentStatusButtonText: {
-      fontSize: 14,
-      color: theme.colors.text.primary,
-      fontWeight: '600',
-    },
-    footer: {
-      flexDirection: 'row',
-      gap: 16,
-      padding: 20,
-      borderTopWidth: 2,
-      borderTopColor: theme.colors.border,
-      backgroundColor: theme.colors.backgroundSecondary,
-    },
-    button: {
-      flex: 1,
-      paddingVertical: 16,
-      borderRadius: 12,
-      alignItems: 'center',
-      elevation: 2,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-    },
-    backButton: {
-      backgroundColor: theme.colors.backgroundTertiary,
-      borderWidth: 2,
-      borderColor: theme.colors.border,
-    },
-    backButtonText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: theme.colors.text.primary,
-    },
-    nextButton: {
-      backgroundColor: theme.colors.primary,
-    },
-    nextButtonText: {
-      fontSize: 16,
-      fontWeight: '700',
-      color: '#FFFFFF',
-      letterSpacing: 0.5,
-    },
-    submitButton: {
-      backgroundColor: '#10B981',
-    },
-    submitButtonText: {
-      fontSize: 16,
-      fontWeight: '700',
-      color: '#FFFFFF',
-      letterSpacing: 0.5,
-    },
-  });
+  if (!canAddProduct) return null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <TouchableWithoutFeedback onPress={handlePressOutside}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      <StatusBar backgroundColor="rgba(0, 0, 0, 0.5)" barStyle="light-content" />
+      <TouchableWithoutFeedback onPress={() => { }}>
         <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
           <TouchableWithoutFeedback>
-            <Animated.View
-              style={[
-                styles.container,
-                {
-                  transform: [
-                    { translateY: slideAnim },
-                    { scale: scaleAnim }
-                  ],
-                },
-              ]}
-            >
+            <Animated.View style={[
+              styles.container,
+              {
+                backgroundColor: theme.colors.background,
+                transform: [{ translateY: slideAnim }, { scale: scaleAnim }]
+              }
+            ]}>
               <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               >
                 {/* Header */}
-                <View style={styles.header}>
-                  <Text style={styles.headerTitle}>✨ Add New Product</Text>
+                <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+                  <Text style={styles.headerTitle}>
+                    📦 {existingProduct ? 'Edit Product' : 'New Product'}
+                  </Text>
                   <TouchableOpacity style={styles.closeButton} onPress={onClose}>
                     <X size={24} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
 
                 {/* Step Indicator */}
-                {renderStepIndicator()}
+                <StepIndicator currentStep={currentStep} steps={formSteps} theme={theme} />
 
                 {/* Content */}
-                <ScrollView
-                  style={styles.content}
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ paddingBottom: 20 }}
-                  bounces={true}
-                  scrollEventThrottle={16}
-                  decelerationRate="normal"
-                >
-                  {renderCurrentStep()}
-                </ScrollView>
+                {renderStepContent()}
 
                 {/* Footer */}
-                <View style={styles.footer}>
+                <View style={[styles.footer, {
+                  backgroundColor: theme.colors.backgroundSecondary,
+                  borderTopColor: theme.colors.border
+                }]}>
                   {currentStep > 0 ? (
                     <TouchableOpacity
-                      style={[styles.button, styles.backButton]}
+                      style={[styles.button, styles.backButton, {
+                        backgroundColor: theme.colors.backgroundTertiary,
+                        borderColor: theme.colors.border
+                      }]}
                       onPress={() => setCurrentStep(prev => prev - 1)}
                     >
-                      <Text style={styles.backButtonText}>← Back</Text>
+                      <Text style={[styles.backButtonText, { color: theme.colors.text.primary }]}>
+                        ← Back
+                      </Text>
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
-                      style={[styles.button, styles.backButton]}
+                      style={[styles.button, styles.backButton, {
+                        backgroundColor: theme.colors.backgroundTertiary,
+                        borderColor: theme.colors.border
+                      }]}
                       onPress={onClose}
                     >
-                      <Text style={styles.backButtonText}>Cancel</Text>
+                      <Text style={[styles.backButtonText, { color: theme.colors.text.primary }]}>
+                        Cancel
+                      </Text>
                     </TouchableOpacity>
                   )}
 
-                  {currentStep < steps.length - 1 ? (
+                  {currentStep < formSteps.length - 1 ? (
                     <TouchableOpacity
-                      style={[styles.button, styles.nextButton]}
-                      onPress={() => setCurrentStep(prev => prev + 1)}
+                      style={[styles.button, styles.nextButton, { backgroundColor: theme.colors.primary }]}
+                      onPress={() => {
+                        // Validate step 0 (product type selection)
+                        if (currentStep === 0) {
+                          if (productType === 'existing' && !selectedExistingProduct) {
+                            Alert.alert('Selection Required', 'Please select an existing product to continue.');
+                            return;
+                          }
+                        }
+                        setCurrentStep(prev => prev + 1);
+                      }}
                     >
                       <Text style={styles.nextButtonText}>Next →</Text>
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
                       style={[styles.button, styles.submitButton]}
-                      onPress={handleSubmit}
+                      onPress={onSubmitForm}
                       disabled={isLoading}
                     >
                       <Text style={styles.submitButtonText}>
-                        {isLoading ? '⏳ Adding...' : '🚀 Add Product'}
+                        {isLoading ? '⏳ Saving...' : `📦 ${existingProduct ? 'Update' : 'Add'} Product`}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -1730,3 +1320,448 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     </Modal>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    paddingTop: 50,
+  },
+  container: {
+    flex: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginHorizontal: 8,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  stepIndicator: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  stepItem: {
+    flex: 1,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  stepCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  stepText: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  stepLine: {
+    position: 'absolute',
+    top: 20,
+    right: -25,
+    width: 50,
+    height: 2,
+    zIndex: -1,
+  },
+  stepContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 20, // Add padding to prevent content from being hidden behind footer
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    letterSpacing: 0.3,
+  },
+  calculatorCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  calculatorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  calculatorTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  calculatorContent: {
+    gap: 8,
+  },
+  calculatorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  calculatorLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  calculatorValue: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  imageUploadContainer: {
+    height: 140,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#3B82F608',
+    marginBottom: 16,
+  },
+  imageUploadContent: {
+    alignItems: 'center',
+  },
+  imageUploadIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  imageUploadText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  imageUploadSubtext: {
+    fontSize: 12,
+    marginBottom: 12,
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+    elevation: 2,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  uploadButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    letterSpacing: 0.2,
+  },
+  requiredLabel: {
+    // Color set dynamically
+  },
+  input: {
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+  },
+  inputDisabled: {
+    opacity: 0.6,
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  infoText: {
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  booleanContainer: {
+    marginVertical: 4,
+  },
+  booleanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 2,
+    borderRadius: 12,
+  },
+  booleanButtonActive: {
+    // Styles applied dynamically
+  },
+  booleanIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginRight: 12,
+  },
+  booleanIndicatorActive: {
+    // Styles applied dynamically
+  },
+  booleanText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  dropdownContainer: {
+    position: 'relative',
+    zIndex: 1000,
+  },
+  dropdownContainerOpen: {
+    zIndex: 9999,
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dropdownContent: {
+    flex: 1,
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  dropdownSubtext: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  dropdownIcon: {
+    marginLeft: 8,
+  },
+  dropdownList: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    borderRadius: 12,
+    elevation: 10000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    zIndex: 10000,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  dropdownListBottom: {
+    top: '100%',
+    marginTop: 4,
+  },
+  dropdownListTop: {
+    bottom: '100%',
+    marginBottom: 4,
+  },
+  dropdownItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  dropdownItemDescription: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  dropdownItemCode: {
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  searchContainer: {
+    padding: 12,
+    borderBottomWidth: 1,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+  },
+  noResultsContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  noResultsText: {
+    fontSize: 14,
+    fontStyle: 'italic',
+  },
+  addressRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  addressInput: {
+    flex: 1,
+  },
+  footer: {
+    flexDirection: 'row',
+    gap: 16,
+    padding: 20,
+    borderTopWidth: 2,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  backButton: {
+    borderWidth: 2,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  nextButton: {
+    // backgroundColor set dynamically
+  },
+  nextButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  submitButton: {
+    backgroundColor: '#10B981',
+  },
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  productTypeContainer: {
+    gap: 16,
+    marginBottom: 24,
+  },
+  productTypeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    gap: 12,
+  },
+  productTypeIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  productTypeContent: {
+    flex: 1,
+  },
+  productTypeTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  productTypeDescription: {
+    fontSize: 14,
+  },
+  radioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioButtonCheck: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  existingProductSection: {
+    marginTop: 20,
+  },
+  selectedProductInfo: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 8,
+  },
+  selectedProductTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  selectedProductDetails: {
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  readOnlyIndicator: {
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+});

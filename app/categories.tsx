@@ -179,7 +179,7 @@ export default function CategoriesPage() {
 
   const handleCategorySubmit = (data: any) => {
     console.log('Category form submitted:', data);
-    // Here you would normally add the category to your database
+    // Here you would normally save the category data
     Alert.alert('Success', 'Category added successfully!');
     setShowCategoryForm(false);
   };
@@ -623,4 +623,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
   },
-}); 
+});

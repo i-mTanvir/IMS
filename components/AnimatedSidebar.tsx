@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -49,10 +49,11 @@ interface MenuItem {
   route: string;
 }
 
-export default function AnimatedSidebar({ isOpen, onClose, onLogout }: AnimatedSidebarProps) {
+const AnimatedSidebar = React.memo(function AnimatedSidebar({ isOpen, onClose, onLogout }: AnimatedSidebarProps) {
   const { theme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
+  // Direct router usage for maximum performance
 
   const navbarHeight = getNavbarHeight();
 
@@ -76,47 +77,40 @@ export default function AnimatedSidebar({ isOpen, onClose, onLogout }: AnimatedS
 
   useEffect(() => {
     if (isMobile) {
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: isOpen ? 0 : -SIDEBAR_WIDTH,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(overlayOpacity, {
-          toValue: isOpen ? 1 : 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      // Instant positioning for super fast navigation
+      slideAnim.setValue(isOpen ? 0 : -SIDEBAR_WIDTH);
+      overlayOpacity.setValue(isOpen ? 1 : 0);
     } else {
       // For desktop, sidebar is always visible
       slideAnim.setValue(0);
     }
   }, [isOpen, slideAnim, overlayOpacity]);
 
-  const handleMenuItemPress = (item: MenuItem) => {
-    if (item.route) {
-      router.push(item.route as any);
-    }
+  const handleMenuItemPress = useCallback((item: MenuItem) => {
+    // Close sidebar immediately for instant visual feedback
     if (isMobile) {
       onClose();
     }
-  };
+    // Direct router navigation for maximum performance
+    if (item.route) {
+      router.replace(item.route as any);
+    }
+  }, [router, onClose]);
 
-  const isMenuItemActive = (route: string) => {
+  const isMenuItemActive = useCallback((route: string) => {
     return pathname === route;
-  };
+  }, [pathname]);
 
-  const handleLogoutPress = () => {
+  const handleLogoutPress = useCallback(() => {
     if (onLogout) {
       onLogout();
     }
     if (isMobile) {
       onClose();
     }
-  };
+  }, [onLogout, onClose]);
 
-  const styles = StyleSheet.create({
+  const styles = useMemo(() => StyleSheet.create({
     overlay: {
       position: 'absolute',
       top: navbarHeight, // Start below the navbar (including status bar)
@@ -273,7 +267,7 @@ export default function AnimatedSidebar({ isOpen, onClose, onLogout }: AnimatedS
       fontSize: 13,
       color: theme.colors.status.error,
     },
-  });
+  }), [theme, navbarHeight]);
 
   return (
     <>
@@ -317,7 +311,7 @@ export default function AnimatedSidebar({ isOpen, onClose, onLogout }: AnimatedS
                   isActive && styles.menuItemActive,
                 ]}
                 onPress={() => handleMenuItemPress(item)}
-                activeOpacity={0.7}
+                activeOpacity={0.3}
               >
                 <Icon
                   size={20}
@@ -348,4 +342,6 @@ export default function AnimatedSidebar({ isOpen, onClose, onLogout }: AnimatedS
       </Animated.View>
     </>
   );
-}
+});
+
+export default AnimatedSidebar;

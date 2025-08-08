@@ -42,9 +42,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
 import CustomerAddForm from '@/components/forms/CustomerAddForm';
-import { CustomerService, Customer as CustomerType } from '@/lib/services/CustomerService';
+// Mock customer service for UI demo
 
-// Interfaces - Updated to match actual database schema
+// Mock interfaces for UI demo
 interface Customer {
   id: string;
   name: string;
@@ -105,7 +105,7 @@ interface PurchaseHistory {
   taxAmount: number;
   totalAmount: number;
   paymentMethod: string;
-  paymentStatus: 'Good' | 'Warning' | 'Overdue' | 'Red Listed';
+  paymentStatus: 'good' | 'warning' | 'overdue' | 'red_listed';
   dueDate?: Date;
   paidAmount: number;
   remainingAmount: number;
@@ -114,10 +114,10 @@ interface PurchaseHistory {
 
 interface CustomerFilters {
   search?: string;
-  customerType?: 'vip' | 'regular' | 'wholesale';
-  paymentStatus?: 'good' | 'warning' | 'overdue' | 'red_listed';
-  isRedListed?: boolean;
-  isActive?: boolean;
+  customer_type?: 'vip' | 'regular' | 'wholesale';
+  payment_status?: 'good' | 'warning' | 'overdue' | 'red_listed';
+  is_red_listed?: boolean;
+  is_active?: boolean;
 }
 
 // Mock data
@@ -128,24 +128,26 @@ const mockCustomers: Customer[] = [
     email: 'contact@rahmanfurniture.com',
     phone: '+880-1234-567890',
     address: 'Gulshan-2, Dhaka, Bangladesh',
-    customerType: 'VIP',
-    creditLimit: 500000,
-    paymentTerms: 30,
-    registrationDate: new Date('2024-01-15'),
-    totalPurchases: 45,
-    totalSpent: 2500000,
-    averageOrderValue: 55555,
-    lastPurchaseDate: new Date('2025-01-05'),
-    purchaseFrequency: 3.2,
-    isActive: true,
-    isRedListed: false,
-    paymentStatus: 'Good',
-    outstandingAmount: 0,
-    daysPastDue: 0,
-    communicationPreferences: ['Email', 'Phone'],
+    customer_type: 'vip',
+    credit_limit: 500000,
+    current_balance: 0,
+    total_sales: 2500000,
+    total_orders: 45,
+    payment_terms: 30,
+    total_purchases: 45,
+    total_spent: 2500000,
+    average_order_value: 55555,
+    last_purchase_date: '2025-01-05',
+    purchase_frequency: 3.2,
+    is_active: true,
+    is_red_listed: false,
+    payment_status: 'good',
+    outstanding_amount: 0,
+    days_past_due: 0,
     notes: 'Premium customer with excellent payment history',
-    createdBy: 'Admin User',
-    lastUpdated: new Date(),
+    created_by: 'Admin User',
+    created_at: '2024-01-15',
+    updated_at: new Date().toISOString(),
   },
   {
     id: '2',
@@ -153,24 +155,26 @@ const mockCustomers: Customer[] = [
     email: 'info@eliteinteriors.bd',
     phone: '+880-1234-567891',
     address: 'Dhanmondi, Dhaka, Bangladesh',
-    customerType: 'Regular',
-    creditLimit: 200000,
-    paymentTerms: 15,
-    registrationDate: new Date('2024-02-01'),
-    totalPurchases: 28,
-    totalSpent: 850000,
-    averageOrderValue: 30357,
-    lastPurchaseDate: new Date('2025-01-08'),
-    purchaseFrequency: 2.1,
-    isActive: true,
-    isRedListed: false,
-    paymentStatus: 'Warning',
-    outstandingAmount: 26400,
-    daysPastDue: 5,
-    communicationPreferences: ['Email', 'SMS'],
+    customer_type: 'regular',
+    credit_limit: 200000,
+    current_balance: 26400,
+    total_sales: 850000,
+    total_orders: 28,
+    payment_terms: 15,
+    total_purchases: 28,
+    total_spent: 850000,
+    average_order_value: 30357,
+    last_purchase_date: '2025-01-08',
+    purchase_frequency: 2.1,
+    is_active: true,
+    is_red_listed: false,
+    payment_status: 'warning',
+    outstanding_amount: 26400,
+    days_past_due: 5,
     notes: 'Regular customer, sometimes delays payments',
-    createdBy: 'Sales User',
-    lastUpdated: new Date(),
+    created_by: 'Sales User',
+    created_at: '2024-02-01',
+    updated_at: new Date().toISOString(),
   },
   {
     id: '3',
@@ -178,26 +182,28 @@ const mockCustomers: Customer[] = [
     email: 'orders@modernhomedecor.com',
     phone: '+880-1234-567892',
     address: 'Uttara, Dhaka, Bangladesh',
-    customerType: 'Wholesale',
-    creditLimit: 1000000,
-    paymentTerms: 45,
-    registrationDate: new Date('2024-01-10'),
-    totalPurchases: 67,
-    totalSpent: 4200000,
-    averageOrderValue: 62686,
-    lastPurchaseDate: new Date('2024-11-15'),
-    purchaseFrequency: 4.8,
-    isActive: true,
-    isRedListed: true,
-    redListDate: new Date('2024-12-30'),
-    redListReason: 'Payment overdue for 65 days',
-    paymentStatus: 'Red Listed',
-    outstandingAmount: 104000,
-    daysPastDue: 65,
-    communicationPreferences: ['Email', 'Phone', 'WhatsApp'],
+    customer_type: 'wholesale',
+    credit_limit: 1000000,
+    current_balance: 104000,
+    total_sales: 4200000,
+    total_orders: 67,
+    payment_terms: 45,
+    total_purchases: 67,
+    total_spent: 4200000,
+    average_order_value: 62686,
+    last_purchase_date: '2024-11-15',
+    purchase_frequency: 4.8,
+    is_active: true,
+    is_red_listed: true,
+    red_listed_date: '2024-12-30',
+    red_list_reason: 'Payment overdue for 65 days',
+    payment_status: 'red_listed',
+    outstanding_amount: 104000,
+    days_past_due: 65,
     notes: 'High volume customer but payment issues',
-    createdBy: 'Admin User',
-    lastUpdated: new Date(),
+    created_by: 'Admin User',
+    created_at: '2024-01-10',
+    updated_at: new Date().toISOString(),
   },
   {
     id: '4',
@@ -205,24 +211,26 @@ const mockCustomers: Customer[] = [
     email: 'sales@comfortliving.bd',
     phone: '+880-1234-567893',
     address: 'Banani, Dhaka, Bangladesh',
-    customerType: 'VIP',
-    creditLimit: 750000,
-    paymentTerms: 30,
-    registrationDate: new Date('2023-12-01'),
-    totalPurchases: 52,
-    totalSpent: 3200000,
-    averageOrderValue: 61538,
-    lastPurchaseDate: new Date('2025-01-03'),
-    purchaseFrequency: 3.8,
-    isActive: true,
-    isRedListed: false,
-    paymentStatus: 'Good',
-    outstandingAmount: 0,
-    daysPastDue: 0,
-    communicationPreferences: ['Email', 'Phone'],
+    customer_type: 'vip',
+    credit_limit: 750000,
+    current_balance: 0,
+    total_sales: 3200000,
+    total_orders: 52,
+    payment_terms: 30,
+    total_purchases: 52,
+    total_spent: 3200000,
+    average_order_value: 61538,
+    last_purchase_date: '2025-01-03',
+    purchase_frequency: 3.8,
+    is_active: true,
+    is_red_listed: false,
+    payment_status: 'good',
+    outstanding_amount: 0,
+    days_past_due: 0,
     notes: 'Excellent customer with consistent orders',
-    createdBy: 'Admin User',
-    lastUpdated: new Date(),
+    created_by: 'Admin User',
+    created_at: '2023-12-01',
+    updated_at: new Date().toISOString(),
   },
   {
     id: '5',
@@ -230,24 +238,26 @@ const mockCustomers: Customer[] = [
     email: 'info@budgetfurniture.com',
     phone: '+880-1234-567894',
     address: 'Mirpur, Dhaka, Bangladesh',
-    customerType: 'Regular',
-    creditLimit: 150000,
-    paymentTerms: 15,
-    registrationDate: new Date('2024-03-15'),
-    totalPurchases: 18,
-    totalSpent: 420000,
-    averageOrderValue: 23333,
-    lastPurchaseDate: new Date('2024-12-20'),
-    purchaseFrequency: 1.8,
-    isActive: true,
-    isRedListed: false,
-    paymentStatus: 'Overdue',
-    outstandingAmount: 45000,
-    daysPastDue: 25,
-    communicationPreferences: ['Phone', 'SMS'],
+    customer_type: 'regular',
+    credit_limit: 150000,
+    current_balance: 45000,
+    total_sales: 420000,
+    total_orders: 18,
+    payment_terms: 15,
+    total_purchases: 18,
+    total_spent: 420000,
+    average_order_value: 23333,
+    last_purchase_date: '2024-12-20',
+    purchase_frequency: 1.8,
+    is_active: true,
+    is_red_listed: false,
+    payment_status: 'overdue',
+    outstanding_amount: 45000,
+    days_past_due: 25,
     notes: 'Small orders, occasional payment delays',
-    createdBy: 'Sales User',
-    lastUpdated: new Date(),
+    created_by: 'Sales User',
+    created_at: '2024-03-15',
+    updated_at: new Date().toISOString(),
   },
 ];
 
@@ -274,7 +284,7 @@ const mockPurchaseHistory: PurchaseHistory[] = [
     taxAmount: 5700,
     totalAmount: 62700,
     paymentMethod: 'Bank Transfer',
-    paymentStatus: 'Good',
+    paymentStatus: 'good',
     paidAmount: 62700,
     remainingAmount: 0,
     notes: 'Premium customer order',
@@ -301,7 +311,7 @@ const mockPurchaseHistory: PurchaseHistory[] = [
     taxAmount: 2400,
     totalAmount: 26400,
     paymentMethod: 'Cash',
-    paymentStatus: 'Warning',
+    paymentStatus: 'warning',
     dueDate: new Date('2025-01-23'),
     paidAmount: 0,
     remainingAmount: 26400,
@@ -319,18 +329,18 @@ export default function CustomersPage() {
   const [filters, setFilters] = useState<CustomerFilters>({});
   const [refreshing, setRefreshing] = useState(false);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Instant loading - no delays
 
-  // Load customers from database
+  // Load mock customers for UI demo - instant loading
   const loadCustomers = async () => {
     try {
-      setLoading(true);
-      const data = await CustomerService.getAllCustomers();
+      // Instant loading - no delays for better performance
+      const data: Customer[] = mockCustomers;
       setCustomers(data);
+      setLoading(false); // Always false for instant display
     } catch (error) {
       console.error('Failed to load customers:', error);
       Alert.alert('Error', 'Failed to load customers');
-    } finally {
       setLoading(false);
     }
   };
@@ -342,22 +352,22 @@ export default function CustomersPage() {
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(customer => {
-      if (filters.search && 
-          !customer.name.toLowerCase().includes(filters.search.toLowerCase()) && 
-          !(customer.email?.toLowerCase().includes(filters.search.toLowerCase())) &&
-          !(customer.phone?.includes(filters.search))) {
+      if (filters.search &&
+        !customer.name.toLowerCase().includes(filters.search.toLowerCase()) &&
+        !(customer.email?.toLowerCase().includes(filters.search.toLowerCase())) &&
+        !(customer.phone?.includes(filters.search))) {
         return false;
       }
-      if (filters.customerType && customer.customer_type !== filters.customerType) {
+      if (filters.customer_type && customer.customer_type !== filters.customer_type) {
         return false;
       }
-      if (filters.paymentStatus && customer.payment_status !== filters.paymentStatus) {
+      if (filters.payment_status && customer.payment_status !== filters.payment_status) {
         return false;
       }
-      if (filters.isRedListed !== undefined && customer.is_red_listed !== filters.isRedListed) {
+      if (filters.is_red_listed !== undefined && customer.is_red_listed !== filters.is_red_listed) {
         return false;
       }
-      if (filters.isActive !== undefined && customer.is_active !== filters.isActive) {
+      if (filters.is_active !== undefined && customer.is_active !== filters.is_active) {
         return false;
       }
       return true;
@@ -434,7 +444,7 @@ export default function CustomersPage() {
           Alert.alert('Permission Denied', 'You do not have permission to manage red list.');
           return;
         }
-        const action = item.isRedListed ? 'Remove from' : 'Add to';
+        const action = item.is_red_listed ? 'Remove from' : 'Add to';
         Alert.alert(`${action} Red List`, `${action} red list for ${item.name}`);
         break;
       case 'reminder':
@@ -468,7 +478,7 @@ export default function CustomersPage() {
           <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>{analytics.totalCustomers}</Text>
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Total Customers</Text>
         </View>
-        
+
         <View style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.warning + '20' }]}>
             <Crown size={24} color={theme.colors.status.warning} />
@@ -477,7 +487,7 @@ export default function CustomersPage() {
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>VIP Customers</Text>
         </View>
       </View>
-      
+
       <View style={styles.kpiRow}>
         <View style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.error + '20' }]}>
@@ -486,7 +496,7 @@ export default function CustomersPage() {
           <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>{analytics.redListedCustomers}</Text>
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Red Listed</Text>
         </View>
-        
+
         <View style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.success + '20' }]}>
             <DollarSign size={24} color={theme.colors.status.success} />
@@ -512,7 +522,7 @@ export default function CustomersPage() {
           All
         </Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[styles.tab, activeTab === 'purchase-history' && { borderBottomColor: theme.colors.primary }]}
         onPress={() => setActiveTab('purchase-history')}
@@ -525,7 +535,7 @@ export default function CustomersPage() {
           History
         </Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[styles.tab, activeTab === 'red-list' && { borderBottomColor: theme.colors.primary }]}
         onPress={() => setActiveTab('red-list')}
@@ -538,7 +548,7 @@ export default function CustomersPage() {
           Red List
         </Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[styles.tab, activeTab === 'top-customers' && { borderBottomColor: theme.colors.primary }]}
         onPress={() => setActiveTab('top-customers')}
@@ -556,7 +566,7 @@ export default function CustomersPage() {
 
   const renderCustomerItem = ({ item }: { item: Customer }) => {
     const StatusIcon = getStatusIcon(item.payment_status);
-    
+
     return (
       <View style={[styles.itemCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
         <View style={styles.itemHeader}>
@@ -571,7 +581,7 @@ export default function CustomersPage() {
             </View>
             <View style={styles.customerInfo}>
               <Text style={[
-                styles.customerName, 
+                styles.customerName,
                 { color: item.is_red_listed ? theme.colors.status.error : theme.colors.text.primary }
               ]}>
                 {item.name}
@@ -584,7 +594,7 @@ export default function CustomersPage() {
               <View style={styles.customerTypeContainer}>
                 <Text style={[
                   styles.customerType,
-                  { 
+                  {
                     color: getCustomerTypeColor(item.customer_type),
                     backgroundColor: getCustomerTypeColor(item.customer_type) + '20'
                   }
@@ -639,14 +649,14 @@ export default function CustomersPage() {
             <View style={styles.statItem}>
               <Text style={[styles.statLabel, { color: theme.colors.text.secondary }]}>Outstanding</Text>
               <Text style={[
-                styles.statValue, 
+                styles.statValue,
                 { color: item.outstanding_amount > 0 ? theme.colors.status.error : theme.colors.status.success }
               ]}>
                 ৳{item.outstanding_amount.toLocaleString()}
               </Text>
             </View>
           </View>
-          
+
           {item.days_past_due > 0 && (
             <View style={styles.overdueContainer}>
               <AlertTriangle size={12} color={theme.colors.status.error} />
@@ -655,7 +665,7 @@ export default function CustomersPage() {
               </Text>
             </View>
           )}
-          
+
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Created:</Text>
             <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
@@ -671,7 +681,7 @@ export default function CustomersPage() {
           >
             <Eye size={16} color={theme.colors.status.info} />
           </TouchableOpacity>
-          
+
           {hasPermission('customers', 'edit') && (
             <>
               <TouchableOpacity
@@ -680,21 +690,21 @@ export default function CustomersPage() {
               >
                 <Edit size={16} color={theme.colors.status.warning} />
               </TouchableOpacity>
-              
+
               <TouchableOpacity
-                style={[styles.actionButton, { 
-                  backgroundColor: item.is_red_listed ? theme.colors.status.success + '20' : theme.colors.status.error + '20' 
+                style={[styles.actionButton, {
+                  backgroundColor: item.is_red_listed ? theme.colors.status.success + '20' : theme.colors.status.error + '20'
                 }]}
                 onPress={() => handleAction('redlist', item)}
               >
-                {item.is_red_listed ? 
+                {item.is_red_listed ?
                   <UserCheck size={16} color={theme.colors.status.success} /> :
                   <UserX size={16} color={theme.colors.status.error} />
                 }
               </TouchableOpacity>
             </>
           )}
-          
+
           {item.outstanding_amount > 0 && (
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: theme.colors.primary + '20' }]}
@@ -711,7 +721,7 @@ export default function CustomersPage() {
   const renderPurchaseHistoryItem = ({ item }: { item: PurchaseHistory }) => {
     const customer = customers.find(c => c.id === item.customerId);
     const StatusIcon = getStatusIcon(item.paymentStatus);
-    
+
     return (
       <View style={[styles.itemCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
         <View style={styles.itemHeader}>
@@ -725,12 +735,12 @@ export default function CustomersPage() {
             <View style={styles.customerTypeContainer}>
               <Text style={[
                 styles.customerType,
-                { 
-                  color: getCustomerTypeColor(customer?.customerType || 'Regular'),
-                  backgroundColor: getCustomerTypeColor(customer?.customerType || 'Regular') + '20'
+                {
+                  color: getCustomerTypeColor(customer?.customer_type || 'regular'),
+                  backgroundColor: getCustomerTypeColor(customer?.customer_type || 'regular') + '20'
                 }
               ]}>
-                {customer?.customerType || 'Regular'}
+                {customer?.customer_type || 'regular'}
               </Text>
             </View>
           </View>
@@ -749,21 +759,21 @@ export default function CustomersPage() {
               {item.purchaseDate.toLocaleDateString()}
             </Text>
           </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Products:</Text>
             <Text style={[styles.detailValue, { color: theme.colors.text.primary }]}>
               {item.products.length} item(s)
             </Text>
           </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Amount:</Text>
             <Text style={[styles.amountValue, { color: theme.colors.primary }]}>
               ৳{item.totalAmount.toLocaleString()}
             </Text>
           </View>
-          
+
           {item.discountAmount > 0 && (
             <View style={styles.detailRow}>
               <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Discount:</Text>
@@ -772,11 +782,11 @@ export default function CustomersPage() {
               </Text>
             </View>
           )}
-          
+
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Outstanding:</Text>
             <Text style={[
-              styles.detailValue, 
+              styles.detailValue,
               { color: item.remainingAmount > 0 ? theme.colors.status.error : theme.colors.status.success }
             ]}>
               ৳{item.remainingAmount.toLocaleString()}
@@ -824,13 +834,13 @@ export default function CustomersPage() {
   return (
     <SharedLayout title="Customers">
       <View style={styles.headerActions}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
         >
           <Download size={20} color={theme.colors.primary} />
         </TouchableOpacity>
         {hasPermission('customers', 'add') && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
             onPress={handleAddCustomer}
           >
@@ -858,7 +868,7 @@ export default function CustomersPage() {
               onChangeText={(text) => setFilters(prev => ({ ...prev, search: text }))}
             />
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.filterButton, { backgroundColor: theme.colors.backgroundSecondary }]}
           >
             <Filter size={20} color={theme.colors.primary} />
@@ -867,14 +877,14 @@ export default function CustomersPage() {
 
         {/* Red List Warning */}
         {activeTab === 'red-list' && (
-          <View style={[styles.warningContainer, { 
+          <View style={[styles.warningContainer, {
             backgroundColor: theme.colors.status.error + '10',
             borderColor: theme.colors.status.error + '30'
           }]}>
             <View style={styles.warningHeader}>
               <AlertTriangle size={20} color={theme.colors.status.error} />
               <Text style={[styles.warningTitle, { color: theme.colors.status.error }]}>
-                Red Listed Customers ({customers.filter(c => c.isRedListed).length})
+                Red Listed Customers ({customers.filter(c => c.is_red_listed).length})
               </Text>
             </View>
             <Text style={[styles.warningText, { color: theme.colors.text.secondary }]}>
@@ -1221,4 +1231,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
   },
-}); 
+});

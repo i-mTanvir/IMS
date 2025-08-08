@@ -231,7 +231,7 @@ export default function ProfilePopup({ visible, onClose, anchorPosition }: Profi
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <X size={16} color={theme.colors.text.secondary} />
             </TouchableOpacity>
-            
+
             <View style={styles.userInfo}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>

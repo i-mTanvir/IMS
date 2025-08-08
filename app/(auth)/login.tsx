@@ -21,7 +21,6 @@ import {
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 
 // Login credentials interface
 interface LoginCredentials {
@@ -39,14 +38,14 @@ const demoCredentials = [
     description: 'Full system access'
   },
   {
-    email: 'sales@serranotex.com', 
+    email: 'sales@serranotex.com',
     password: 'Sales123!',
     role: 'Sales Manager',
     description: 'Sales and customer management'
   },
   {
     email: 'investor@serranotex.com',
-    password: 'Investor123!', 
+    password: 'Investor123!',
     role: 'Investor',
     description: 'Read-only dashboard access'
   }
@@ -92,78 +91,66 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Sign in with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: credentials.email,
-        password: credentials.password,
-      });
+      // Find matching demo user
+      const demoUser = demoCredentials.find(
+        user => user.email === credentials.email && user.password === credentials.password
+      );
 
-      if (authError) {
-        console.error('Auth error:', authError);
-        Alert.alert('Login Failed', authError.message || 'Invalid email or password. Please try again.');
+      if (!demoUser) {
+        Alert.alert('Login Failed', 'Invalid email or password. Please use one of the demo credentials.');
         setIsLoading(false);
         return;
       }
 
-      if (!authData.user) {
-        Alert.alert('Login Failed', 'No user data received. Please try again.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Get user profile from our users table
-      const { data: userProfile, error: profileError } = await supabase
-        .from('users')
-        .select(`
-          *,
-          user_permissions!user_permissions_user_id_fkey (
-            module,
-            can_create,
-            can_read,
-            can_update,
-            can_delete,
-            can_approve,
-            location_restrictions
-          )
-        `)
-        .eq('email', credentials.email)
-        .single();
-
-      if (profileError) {
-        console.error('Profile error:', profileError);
-        Alert.alert('Login Error', 'Could not load user profile. Please contact support.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Update last login
-      await supabase
-        .from('users')
-        .update({ last_login: new Date().toISOString() })
-        .eq('id', userProfile.id);
-
-      // Create user session with permissions
-      const permissions: Record<string, any> = {};
-      userProfile.user_permissions?.forEach((perm: any) => {
-        permissions[perm.module.toLowerCase()] = {
-          view: perm.can_read,
-          add: perm.can_create,
-          edit: perm.can_update,
-          delete: perm.can_delete,
-          approve: perm.can_approve,
-          locationRestrictions: perm.location_restrictions
+      // Create mock permissions based on role
+      const getPermissionsByRole = (role: string) => {
+        const basePermissions = {
+          dashboard: { view: true },
+          products: { view: true, add: false, edit: false, delete: false },
+          inventory: { view: true, add: false, edit: false, delete: false, transfer: false },
+          sales: { view: true, add: false, edit: false, delete: false, invoice: false },
+          customers: { view: true, add: false, edit: false, delete: false },
+          suppliers: { view: true, add: false, edit: false, delete: false },
+          samples: { view: true, add: false, edit: false, delete: false },
+          reports: { view: true, export: false },
+          notifications: { view: true, manage: false },
+          activityLogs: { view: false },
+          settings: { view: false, userManagement: false, systemSettings: false },
+          help: { view: true }
         };
-      });
+
+        if (role === 'Super Admin') {
+          // Super admin gets all permissions
+          Object.keys(basePermissions).forEach(module => {
+            const moduleKey = module as keyof typeof basePermissions;
+            Object.keys(basePermissions[moduleKey]).forEach(action => {
+              const actionKey = action as keyof typeof basePermissions[typeof moduleKey];
+              (basePermissions[moduleKey] as any)[actionKey] = true;
+            });
+          });
+        } else if (role === 'Sales Manager') {
+          // Sales manager gets sales-related permissions
+          basePermissions.products = { view: true, add: true, edit: true, delete: false };
+          basePermissions.inventory = { view: true, add: true, edit: true, delete: false, transfer: true };
+          basePermissions.sales = { view: true, add: true, edit: true, delete: false, invoice: true };
+          basePermissions.customers = { view: true, add: true, edit: true, delete: false };
+          basePermissions.suppliers = { view: true, add: true, edit: true, delete: false };
+          basePermissions.samples = { view: true, add: true, edit: true, delete: false };
+          basePermissions.reports = { view: true, export: true };
+          basePermissions.notifications = { view: true, manage: false };
+        }
+
+        return basePermissions;
+      };
 
       const userSession = {
-        id: userProfile.id,
-        email: userProfile.email,
-        name: userProfile.full_name,
-        role: userProfile.role,
-        permissions,
-        assignedLocations: userProfile.assigned_locations,
-        loginTime: new Date().toISOString(),
-        supabaseUser: authData.user
+        id: `demo-${Date.now()}`,
+        email: demoUser.email,
+        name: demoUser.role,
+        role: demoUser.role.toLowerCase().replace(' ', '_'),
+        permissions: getPermissionsByRole(demoUser.role),
+        assignedLocations: ['main-warehouse', 'retail-store'],
+        loginTime: new Date().toISOString()
       };
 
       // Login user
@@ -174,7 +161,7 @@ export default function LoginPage() {
 
       Alert.alert(
         'Login Successful',
-        `Welcome back, ${userProfile.full_name}!\nRole: ${userProfile.role.replace('_', ' ').toUpperCase()}`
+        `Welcome back, ${demoUser.role}!\nThis is a demo version with mock data.`
       );
     } catch (error) {
       console.error('Login error:', error);
@@ -407,9 +394,9 @@ export default function LoginPage() {
             <View style={styles.demoCredentials}>
               <Text style={styles.demoTitle}>Demo Credentials:</Text>
               <Text style={styles.demoSubtitle}>
-                Create these users in Supabase Dashboard → Authentication → Users
+                Use these credentials to test different user roles
               </Text>
-              
+
               {demoCredentials.map((user, index) => (
                 <View
                   key={user.email}

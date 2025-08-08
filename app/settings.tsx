@@ -52,9 +52,24 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
-import AddUserForm from '@/components/forms/AddUserForm';
-import { UserService, UserProfile } from '@/lib/services/UserService';
-import { LocationService, Location } from '@/lib/services/LocationService';
+import RoleAddForm from '@/components/forms/RoleAddForm';
+// Mock interfaces for UI demo
+interface UserProfile {
+  id: string;
+  fullName: string;
+  email: string;
+  phone?: string;
+  role: 'super_admin' | 'admin' | 'sales_manager' | 'investor';
+  isActive: boolean;
+  createdAt: string;
+  createdBy?: string;
+}
+
+interface Location {
+  id: string;
+  name: string;
+  type: 'warehouse' | 'showroom';
+}
 
 // Types - using UserProfile from service
 type RoleManagement = UserProfile;
@@ -93,7 +108,7 @@ const ROLE_LABELS = {
     investor: 'Investor',
 };
 
-// No mock data - will load from database
+// No mock data - will load from local storage
 
 interface LocationMap {
   [key: string]: Location;
@@ -196,7 +211,8 @@ export default function SettingsPage() {
         setLoading(true);
         try {
             console.log('🔄 Loading users...');
-            const userData = await UserService.getAllUsers();
+            // Mock users data for demo
+            const userData: UserProfile[] = [];
             console.log('✅ Users loaded:', userData.length);
             setUsers(userData);
         } catch (error: any) {
@@ -209,7 +225,8 @@ export default function SettingsPage() {
 
     const loadLocations = async () => {
         try {
-            const locationData = await LocationService.getAllLocations();
+            // Mock locations data for demo
+            const locationData: Location[] = [];
             const locationMap: LocationMap = {};
             locationData.forEach(location => {
                 locationMap[location.id] = location;
@@ -241,20 +258,32 @@ export default function SettingsPage() {
         Alert.alert('Success', 'Appearance settings saved successfully!');
     };
 
-    const handleUserAdded = (newUser: UserProfile) => {
+    const handleUserAdded = (data: any) => {
+        // Transform RoleFormData to UserProfile format
+        const newUser: UserProfile = {
+            id: Date.now().toString(),
+            fullName: data.fullName || data.name || 'New User',
+            email: data.email || '',
+            phone: data.mobileNumber || data.phone,
+            role: data.role?.toLowerCase().replace(' ', '_') || 'admin',
+            isActive: true,
+            createdAt: new Date().toISOString(),
+            createdBy: user?.name || 'System'
+        };
         setUsers(prev => [newUser, ...prev]);
+        Alert.alert('Success', 'User added successfully!');
     };
 
     const handleEditUser = (userProfile: UserProfile) => {
         setEditingUser(userProfile);
         // TODO: Implement edit user modal
-        Alert.alert('Edit User', `Edit functionality for ${userProfile.full_name} will be implemented`);
+        Alert.alert('Edit User', `Edit functionality for ${userProfile.fullName} will be implemented`);
     };
 
     const handleDeleteUser = (userProfile: UserProfile) => {
         Alert.alert(
             'Delete User',
-            `Are you sure you want to delete ${userProfile.full_name}?\n\nThis action cannot be undone.`,
+            `Are you sure you want to delete ${userProfile.fullName}?\n\nThis action cannot be undone.`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -262,7 +291,8 @@ export default function SettingsPage() {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            await UserService.deleteUser(userProfile.id);
+                            // Mock user deletion for demo
+                            console.log('Mock delete user:', userProfile.id);
                             setUsers(prev => prev.filter(u => u.id !== userProfile.id));
                             Alert.alert('Success', 'User deleted successfully');
                         } catch (error: any) {
@@ -277,15 +307,12 @@ export default function SettingsPage() {
 
     const handleToggleUserStatus = async (userProfile: UserProfile) => {
         try {
-            const updatedUser = await UserService.toggleUserStatus(
-                userProfile.id,
-                !userProfile.is_active,
-                user?.id || ''
-            );
+            // Mock user status toggle for demo
+            const updatedUser = { ...userProfile, isActive: !userProfile.isActive };
             setUsers(prev => prev.map(u => u.id === userProfile.id ? updatedUser : u));
             Alert.alert(
                 'Success',
-                `User ${updatedUser.is_active ? 'activated' : 'deactivated'} successfully`
+                `User ${updatedUser.isActive ? 'activated' : 'deactivated'} successfully`
             );
         } catch (error: any) {
             console.error('Failed to toggle user status:', error);
@@ -427,13 +454,13 @@ export default function SettingsPage() {
                                             <View style={styles.avatarContainer}>
                                                 <View style={[styles.avatarFallback, { backgroundColor: theme.colors.primary }]}>
                                                     <Text style={[styles.avatarText, { color: theme.colors.text.inverse }]}>
-                                                        {getUserInitials(userProfile.full_name)}
+                                                        {getUserInitials(userProfile.fullName)}
                                                     </Text>
                                                 </View>
                                             </View>
                                             <View style={styles.userDetails}>
                                                 <Text style={[styles.userName, { color: theme.colors.text.primary }]}>
-                                                    {userProfile.full_name}
+                                                    {userProfile.fullName}
                                                 </Text>
                                                 <Text style={[styles.userEmail, { color: theme.colors.text.secondary }]}>
                                                     {userProfile.email}
@@ -443,11 +470,9 @@ export default function SettingsPage() {
                                                         {userProfile.phone}
                                                     </Text>
                                                 )}
-                                                {userProfile.assigned_locations.length > 0 && (
-                                                    <Text style={[styles.userLocations, { color: theme.colors.text.muted }]}>
-                                                        📍 {getLocationNames(userProfile.assigned_locations)}
-                                                    </Text>
-                                                )}
+                                                <Text style={[styles.userLocations, { color: theme.colors.text.muted }]}>
+                                                    📍 No locations assigned
+                                                </Text>
                                             </View>
                                         </View>
                                         <View style={styles.userBadges}>
@@ -459,15 +484,15 @@ export default function SettingsPage() {
                                             <TouchableOpacity
                                                 style={[
                                                     styles.statusBadge,
-                                                    { backgroundColor: userProfile.is_active ? theme.colors.status.success + '20' : theme.colors.status.error + '20' }
+                                                    { backgroundColor: userProfile.isActive ? theme.colors.status.success + '20' : theme.colors.status.error + '20' }
                                                 ]}
                                                 onPress={() => handleToggleUserStatus(userProfile)}
                                             >
                                                 <Text style={[
                                                     styles.statusBadgeText,
-                                                    { color: userProfile.is_active ? theme.colors.status.success : theme.colors.status.error }
+                                                    { color: userProfile.isActive ? theme.colors.status.success : theme.colors.status.error }
                                                 ]}>
-                                                    {userProfile.is_active ? 'Active' : 'Inactive'}
+                                                    {userProfile.isActive ? 'Active' : 'Inactive'}
                                                 </Text>
                                             </TouchableOpacity>
                                         </View>
@@ -475,13 +500,9 @@ export default function SettingsPage() {
 
                                     <View style={styles.userMeta}>
                                         <Text style={[styles.userMetaText, { color: theme.colors.text.muted }]}>
-                                            Created: {new Date(userProfile.created_at).toLocaleDateString()}
+                                            Created: {new Date(userProfile.createdAt).toLocaleDateString()}
                                         </Text>
-                                        {userProfile.last_login && (
-                                            <Text style={[styles.userMetaText, { color: theme.colors.text.muted }]}>
-                                                Last login: {new Date(userProfile.last_login).toLocaleDateString()}
-                                            </Text>
-                                        )}
+
                                     </View>
 
                                     <View style={styles.userActions}>
@@ -938,11 +959,10 @@ export default function SettingsPage() {
             </ScrollView>
 
             {/* Add User Modal */}
-            <AddUserForm
+            <RoleAddForm
                 visible={showAddUserModal}
                 onClose={() => setShowAddUserModal(false)}
-                onUserAdded={handleUserAdded}
-                currentUserId={user?.id || ''}
+                onSubmit={handleUserAdded}
             />
         </SharedLayout>
     );

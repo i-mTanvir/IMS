@@ -475,7 +475,7 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
         created_by: 'current_user', // Will be replaced with actual user
       };
 
-      console.log('Final sale data:', saleData);
+      // Final sale data prepared for submission
 
       // Call the submission handler
       await onSubmit(saleData);

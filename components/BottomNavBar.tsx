@@ -1,18 +1,20 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Home, Search, Plus, Clock, User, Bell, Repeat } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter, usePathname } from 'expo-router';
-import FloatingActionMenu from './FloatingActionMenu';
+// Removed useFastNavigation for direct router usage
+import OptimizedFloatingMenu from './OptimizedFloatingMenu';
 
 interface BottomNavBarProps {
   activeTab?: string;
 }
 
-export default function BottomNavBar({ activeTab }: BottomNavBarProps) {
+const BottomNavBar = React.memo(function BottomNavBar({ activeTab }: BottomNavBarProps) {
   const { theme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
+  // Direct router usage for maximum performance
 
   const navItems = [
     {
@@ -48,22 +50,18 @@ export default function BottomNavBar({ activeTab }: BottomNavBarProps) {
     },
   ];
 
-  const handleTabPress = (item: typeof navItems[0]) => {
+  const handleTabPress = useCallback((item: typeof navItems[0]) => {
     if (item.route) {
-      router.push(item.route as any);
+      // Direct router navigation for maximum performance
+      router.replace(item.route as any);
     }
-  };
+  }, [router]);
 
-  const handleMenuItemPress = (action: any) => {
-    // Handle menu item press - logic to be implemented later
-    console.log('Menu item pressed:', action.id);
-  };
-
-  const isActive = (route: string) => {
+  const isActive = useCallback((route: string) => {
     return pathname === route || activeTab === route.replace('/', '');
-  };
+  }, [pathname, activeTab]);
 
-  const styles = StyleSheet.create({
+  const styles = useMemo(() => StyleSheet.create({
     container: {
       flexDirection: 'row',
       backgroundColor: theme.colors.navigation.background,
@@ -108,7 +106,7 @@ export default function BottomNavBar({ activeTab }: BottomNavBarProps) {
     inactiveLabel: {
       color: theme.colors.navigation.inactive,
     },
-  });
+  }), [theme]);
 
   return (
     <View style={styles.container}>
@@ -117,10 +115,10 @@ export default function BottomNavBar({ activeTab }: BottomNavBarProps) {
           key={item.id}
           style={styles.tabItem}
           onPress={() => handleTabPress(item)}
-          activeOpacity={0.7}
+          activeOpacity={0.3}
         >
           {item.isCenter ? (
-            <FloatingActionMenu onMenuItemPress={handleMenuItemPress} />
+            <OptimizedFloatingMenu />
           ) : (
             <>
               <item.icon
@@ -144,4 +142,6 @@ export default function BottomNavBar({ activeTab }: BottomNavBarProps) {
       ))}
     </View>
   );
-}
+});
+
+export default BottomNavBar;

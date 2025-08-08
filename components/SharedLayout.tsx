@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -23,7 +23,7 @@ interface SharedLayoutProps {
   onLogout?: () => void;
 }
 
-export default function SharedLayout({
+const SharedLayout = React.memo(function SharedLayout({
   children,
   title,
   showCalendar = true,
@@ -35,12 +35,21 @@ export default function SharedLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { handleBackPress } = useCustomNavigation();
 
-  const handleCalendarPress = () => {
+  const handleCalendarPress = useCallback(() => {
     // Handle calendar press - you can implement calendar modal here
     console.log('Calendar pressed');
-  };
+  }, []);
 
-  const styles = StyleSheet.create({
+  const handleMenuPress = useCallback(() => {
+    // Instant sidebar toggle for super fast response
+    setSidebarOpen(prev => !prev);
+  }, []);
+
+  const handleSidebarClose = useCallback(() => {
+    setSidebarOpen(false);
+  }, []);
+
+  const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
@@ -57,13 +66,13 @@ export default function SharedLayout({
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-  });
+  }), [theme]);
 
   return (
     <SafeAreaView style={styles.container}>
       <AnimatedSidebar
         isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
+        onClose={handleSidebarClose}
         onLogout={onLogout}
       />
       
@@ -77,7 +86,7 @@ export default function SharedLayout({
             showCalendar={showCalendar}
             showNotifications={showNotifications}
             showProfile={showProfile}
-            onMenuPress={() => setSidebarOpen(!sidebarOpen)}
+            onMenuPress={handleMenuPress}
             onCalendarPress={handleCalendarPress}
             sidebarOpen={sidebarOpen}
           />
@@ -91,4 +100,6 @@ export default function SharedLayout({
       </View>
     </SafeAreaView>
   );
-}
+});
+
+export default SharedLayout;

@@ -50,9 +50,7 @@ const mockSamples: Sample[] = [
     sampleNumber: 'SMP-2025-001',
     sampleName: 'Premium Velvet Sample Set',
     description: 'Velvet fabric samples in multiple colors for sofa evaluation',
-    productId: '1',
-    productName: 'Premium Velvet Sofa Fabric',
-    productCode: '#LWIL02012',
+
     customerId: '1',
     customerName: 'Rahman Furniture',
     customerPhone: '+880-1234-567890',
@@ -86,9 +84,7 @@ const mockSamples: Sample[] = [
     sampleNumber: 'SMP-2025-002',
     sampleName: 'Silk Curtain Samples',
     description: 'Various silk curtain materials for new showroom',
-    productId: '2',
-    productName: 'Silk Curtain Material',
-    productCode: '#LWIL02013',
+
     customerId: '2',
     customerName: 'Elite Interiors',
     customerPhone: '+880-1234-567891',
@@ -116,9 +112,7 @@ const mockSamples: Sample[] = [
     sampleNumber: 'SMP-2025-003',
     sampleName: 'Leather Sample Collection',
     description: 'Artificial leather samples for bulk order evaluation',
-    productId: '3',
-    productName: 'Leather Upholstery',
-    productCode: '#LWIL02014',
+
     customerId: '3',
     customerName: 'Modern Home Decor',
     customerPhone: '+880-1234-567892',
@@ -146,9 +140,6 @@ const mockSamples: Sample[] = [
     sampleNumber: 'SMP-2025-004',
     sampleName: 'Cotton Blend Test Samples',
     description: 'New cotton blend fabric samples for quality assessment',
-    productId: '4',
-    productName: 'Cotton Blend Fabric',
-    productCode: '#LWIL02015',
     customerId: '4',
     customerName: 'Comfort Living Ltd',
     customerPhone: '+880-1234-567893',
@@ -176,9 +167,6 @@ const mockSamples: Sample[] = [
     sampleNumber: 'SMP-2025-005',
     sampleName: 'Trade Show Display Set',
     description: 'Sample collection for upcoming trade show display',
-    productId: '5',
-    productName: 'Decorative Curtain Fabric',
-    productCode: '#LWIL02016',
     customerId: '5',
     customerName: 'Budget Furniture House',
     customerPhone: '+880-1234-567894',
@@ -215,10 +203,10 @@ export default function SamplesPage() {
   // Filter samples based on current filters
   const filteredSamples = useMemo(() => {
     return samples.filter(sample => {
-      if (filters.search && 
-          !sample.sampleName.toLowerCase().includes(filters.search.toLowerCase()) && 
-          !sample.sampleNumber.toLowerCase().includes(filters.search.toLowerCase()) &&
-          !sample.customerName.toLowerCase().includes(filters.search.toLowerCase())) {
+      if (filters.search &&
+        !sample.sampleName.toLowerCase().includes(filters.search.toLowerCase()) &&
+        !sample.sampleNumber.toLowerCase().includes(filters.search.toLowerCase()) &&
+        !sample.customerName.toLowerCase().includes(filters.search.toLowerCase())) {
         return false;
       }
       if (filters.status && sample.status !== filters.status) {
@@ -227,9 +215,7 @@ export default function SamplesPage() {
       if (filters.customerId && sample.customerId !== filters.customerId) {
         return false;
       }
-      if (filters.productId && sample.productId !== filters.productId) {
-        return false;
-      }
+
       if (filters.purpose && sample.purpose !== filters.purpose) {
         return false;
       }
@@ -237,8 +223,8 @@ export default function SamplesPage() {
         return false;
       }
       if (filters.overdueOnly) {
-        const isOverdue = sample.status === 'Delivered' && 
-          new Date() > sample.expectedReturnDate && 
+        const isOverdue = sample.status === 'Delivered' &&
+          new Date() > sample.expectedReturnDate &&
           !sample.actualReturnDate;
         if (!isOverdue) return false;
       }
@@ -256,7 +242,7 @@ export default function SamplesPage() {
     const deliveredSamples = samples.filter(s => s.status === 'Delivered').length;
     const returnedSamples = samples.filter(s => s.status === 'Returned').length;
     const convertedSamples = samples.filter(s => s.status === 'Converted to Sale').length;
-    const overdueSamples = samples.filter(s => 
+    const overdueSamples = samples.filter(s =>
       s.status === 'Delivered' && new Date() > s.expectedReturnDate && !s.actualReturnDate
     ).length;
     const conversionRate = totalSamples > 0 ? (convertedSamples / totalSamples) * 100 : 0;
@@ -315,9 +301,9 @@ export default function SamplesPage() {
   };
 
   const isOverdue = (sample: Sample) => {
-    return sample.status === 'Delivered' && 
-           new Date() > sample.expectedReturnDate && 
-           !sample.actualReturnDate;
+    return sample.status === 'Delivered' &&
+      new Date() > sample.expectedReturnDate &&
+      !sample.actualReturnDate;
   };
 
   const getDaysOverdue = (sample: Sample) => {
@@ -366,7 +352,7 @@ export default function SamplesPage() {
           Samples
         </Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[styles.tab, activeTab === 'analytics' && { borderBottomColor: theme.colors.primary }]}
         onPress={() => setActiveTab('analytics')}
@@ -379,7 +365,7 @@ export default function SamplesPage() {
           Analytics
         </Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[styles.tab, activeTab === 'conversions' && { borderBottomColor: theme.colors.primary }]}
         onPress={() => setActiveTab('conversions')}
@@ -392,7 +378,7 @@ export default function SamplesPage() {
           Conversions
         </Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[styles.tab, activeTab === 'costs' && { borderBottomColor: theme.colors.primary }]}
         onPress={() => setActiveTab('costs')}
@@ -418,7 +404,7 @@ export default function SamplesPage() {
           <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>{analytics.totalSamples}</Text>
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Total Samples</Text>
         </View>
-        
+
         <View style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.info + '20' }]}>
             <Truck size={24} color={theme.colors.status.info} />
@@ -427,7 +413,7 @@ export default function SamplesPage() {
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Delivered</Text>
         </View>
       </View>
-      
+
       <View style={styles.kpiRow}>
         <View style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.success + '20' }]}>
@@ -436,7 +422,7 @@ export default function SamplesPage() {
           <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>{analytics.conversionRate.toFixed(1)}%</Text>
           <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Conversion Rate</Text>
         </View>
-        
+
         <View style={[styles.kpiCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.error + '20' }]}>
             <AlertTriangle size={24} color={theme.colors.status.error} />
@@ -556,10 +542,10 @@ export default function SamplesPage() {
 
   const renderSampleCard = ({ item: sample }: { item: Sample }) => {
     const StatusIcon = getStatusIcon(sample.status);
-    
+
     return (
-      <View style={[styles.sampleCard, { 
-        backgroundColor: theme.colors.card, 
+      <View style={[styles.sampleCard, {
+        backgroundColor: theme.colors.card,
         borderColor: theme.colors.border,
         borderLeftColor: isOverdue(sample) ? theme.colors.status.error : theme.colors.border,
         borderLeftWidth: isOverdue(sample) ? 4 : 1,
@@ -593,41 +579,44 @@ export default function SamplesPage() {
               {sample.customerName}
             </Text>
           </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Product:</Text>
-            <Text style={[styles.detailValue, { color: theme.colors.text.primary }]} numberOfLines={1}>
-              {sample.productName}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Quantity:</Text>
-            <Text style={[styles.detailValue, { color: theme.colors.primary }]}>
-              {sample.quantity}
-            </Text>
-          </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Purpose:</Text>
-            <Text style={[styles.purposeBadge, { 
+            <Text style={[styles.purposeBadge, {
               color: theme.colors.primary,
               backgroundColor: theme.colors.primary + '20'
             }]}>
               {sample.purpose}
             </Text>
           </View>
-          
+
+          <View style={styles.detailRow}>
+            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Quantity:</Text>
+            <Text style={[styles.detailValue, { color: theme.colors.primary }]}>
+              {sample.quantity}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Purpose:</Text>
+            <Text style={[styles.purposeBadge, {
+              color: theme.colors.primary,
+              backgroundColor: theme.colors.primary + '20'
+            }]}>
+              {sample.purpose}
+            </Text>
+          </View>
+
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Expected Return:</Text>
             <Text style={[
-              styles.detailValue, 
+              styles.detailValue,
               { color: isOverdue(sample) ? theme.colors.status.error : theme.colors.text.primary }
             ]}>
               {sample.expectedReturnDate.toLocaleDateString()}
             </Text>
           </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: theme.colors.text.secondary }]}>Total Cost:</Text>
             <View style={styles.costContainer}>
@@ -653,14 +642,14 @@ export default function SamplesPage() {
           >
             <Eye size={16} color={theme.colors.status.info} />
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: theme.colors.primary + '20' }]}
             onPress={() => handleSampleAction('email', sample)}
           >
             <Mail size={16} color={theme.colors.primary} />
           </TouchableOpacity>
-          
+
           {hasPermission('samples', 'edit') && (
             <>
               <TouchableOpacity
@@ -669,7 +658,7 @@ export default function SamplesPage() {
               >
                 <Edit size={16} color={theme.colors.status.warning} />
               </TouchableOpacity>
-              
+
               {sample.status === 'Delivered' && (
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: theme.colors.status.success + '20' }]}
@@ -688,22 +677,22 @@ export default function SamplesPage() {
   return (
     <SharedLayout title="Sample Tracking">
       <View style={styles.headerActions}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.headerButton, { backgroundColor: theme.colors.backgroundSecondary }]}
         >
           <Download size={20} color={theme.colors.primary} />
         </TouchableOpacity>
         {hasPermission('samples', 'add') && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-            onPress={() => router.push('/add')}
+            onPress={() => Alert.alert('Add Sample', 'Add new sample functionality')}
           >
             <Plus size={20} color={theme.colors.text.inverse} />
           </TouchableOpacity>
         )}
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -733,7 +722,7 @@ export default function SamplesPage() {
                 onChangeText={(text) => setFilters(prev => ({ ...prev, search: text }))}
               />
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.filterButton, { backgroundColor: theme.colors.backgroundSecondary }]}
               onPress={() => {
                 setFilters(prev => ({ ...prev, overdueOnly: !prev.overdueOnly }));

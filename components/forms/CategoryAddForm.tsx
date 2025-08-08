@@ -21,7 +21,12 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { CategoryService, CreateCategoryData } from '@/lib/services/CategoryService';
+// Mock interface for UI demo
+interface CreateCategoryData {
+  name: string;
+  description?: string;
+  color?: string;
+}
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -174,7 +179,8 @@ export default function CategoryAddForm({ visible, onClose, onSubmit, existingCa
         color_code: formData.color_code,
       };
 
-      const newCategory = await CategoryService.createCategory(categoryData, user?.id || '');
+      // Mock category creation for demo
+      const newCategory = { id: Date.now().toString(), ...categoryData };
 
       Alert.alert(
         'Success',

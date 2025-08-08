@@ -1,10 +1,12 @@
 import { useEffect, useCallback } from 'react';
 import { BackHandler, Alert } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
+// Removed useFastNavigation import for direct router usage
 
 export const useCustomNavigation = () => {
   const router = useRouter();
   const pathname = usePathname();
+  // Direct router usage for maximum performance
 
   const showExitConfirmation = useCallback(() => {
     Alert.alert(
@@ -32,8 +34,7 @@ export const useCustomNavigation = () => {
       return true; // Prevent default back behavior
     }
     
-    // For any other page, go to dashboard
-    // Use replace to prevent building up navigation stack
+    // For any other page, go to dashboard super fast
     router.replace('/dashboard');
     return true; // Prevent default back behavior
   }, [pathname, router, showExitConfirmation]);

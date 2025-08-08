@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,36 +10,28 @@ import {
   Image,
   Dimensions,
   Modal,
-  Animated,
-  SafeAreaView,
   RefreshControl,
 } from 'react-native';
 import {
   Search,
   Filter,
-  ArrowRight,
   Package,
   MapPin,
-  Truck,
   CheckCircle,
   XCircle,
   Clock,
   User,
-  FileText,
-  Repeat,
-  ChevronDown,
-  X,
   Send,
   AlertTriangle,
   Calendar,
   BarChart,
+  Repeat,
+  ChevronDown,
+  X,
 } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
-import TransferForm from '@/components/forms/TransferForm';
-import TransferRequestForm from '@/components/forms/TransferRequestForm';
 
 const { width } = Dimensions.get('window');
 const isMobile = width < 768;
@@ -74,7 +66,6 @@ const mockProducts: Product[] = [
     id: '1',
     name: 'Premium Sofa Fabric',
     productCode: 'SF-1001',
-    image: 'https://images.pexels.com/photos/6707628/pexels-photo-6707628.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=1',
     stock: 120,
     location: 'Main Warehouse',
     category: 'Sofa Fabrics',
@@ -84,31 +75,10 @@ const mockProducts: Product[] = [
     id: '2',
     name: 'Luxury Curtain Material',
     productCode: 'CM-2002',
-    image: 'https://images.pexels.com/photos/1090638/pexels-photo-1090638.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=1',
     stock: 85,
     location: 'Main Warehouse',
     category: 'Curtain Fabrics',
     lot: 'LOT-B2',
-  },
-  {
-    id: '3',
-    name: 'Artificial Leather - Brown',
-    productCode: 'AL-3003',
-    image: 'https://images.pexels.com/photos/5816934/pexels-photo-5816934.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=1',
-    stock: 50,
-    location: 'Secondary Warehouse',
-    category: 'Artificial Leather',
-    lot: 'LOT-C3',
-  },
-  {
-    id: '4',
-    name: 'Cotton Blend - White',
-    productCode: 'GB-4004',
-    image: 'https://images.pexels.com/photos/4792088/pexels-photo-4792088.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=1',
-    stock: 200,
-    location: 'Main Warehouse',
-    category: 'Garments',
-    lot: 'LOT-D4',
   },
 ];
 
@@ -135,17 +105,6 @@ const mockTransferRequests: TransferRequest[] = [
     requestedAt: new Date('2024-05-09T14:45:00'),
     status: 'approved',
   },
-  {
-    id: 'TR-003',
-    productId: '3',
-    productName: 'Artificial Leather - Brown',
-    quantity: 10,
-    sourceLocation: 'Secondary Warehouse',
-    destinationLocation: 'Showroom C',
-    requestedBy: 'Mike Johnson',
-    requestedAt: new Date('2024-05-08T09:15:00'),
-    status: 'completed',
-  },
 ];
 
 const locations = [
@@ -156,32 +115,27 @@ const locations = [
   'Showroom C',
 ];
 
-export default function TransferPage() {
+const TransferPage = React.memo(function TransferPage() {
   const { theme } = useTheme();
   const { user } = useAuth();
-  const router = useRouter();
 
   // State
   const [activeTab, setActiveTab] = useState('products');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [showTransferForm, setShowTransferForm] = useState(false);
-  const [showRequestForm, setShowRequestForm] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Filter states
   const [filters, setFilters] = useState({
     category: '',
     location: '',
     status: '',
-    dateRange: { start: null, end: null },
   });
 
   const isAdminOrSuperAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
-  // Create styles function that uses theme
-  const createStyles = () => StyleSheet.create({
+  // Optimized styles with useMemo
+  const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
@@ -216,7 +170,7 @@ export default function TransferPage() {
     searchContainer: {
       flexDirection: 'row',
       padding: 12,
-      backgroundColor: theme.colors.backgroundSecondary,
+      backgroundColor: theme.colors.card,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
       gap: 8,
@@ -225,14 +179,11 @@ export default function TransferPage() {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: theme.colors.background,
+      backgroundColor: theme.colors.input,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.colors.border,
       paddingHorizontal: 12,
-    },
-    searchIcon: {
-      marginRight: 8,
     },
     searchInput: {
       flex: 1,
@@ -244,15 +195,11 @@ export default function TransferPage() {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme.colors.backgroundTertiary,
+      backgroundColor: theme.colors.card,
       borderRadius: 8,
       paddingHorizontal: 12,
       borderWidth: 1,
       borderColor: theme.colors.border,
-    },
-    listContainer: {
-      padding: 12,
-      gap: 12,
     },
     productCard: {
       flexDirection: 'row',
@@ -262,29 +209,6 @@ export default function TransferPage() {
       marginBottom: 12,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      shadowColor: theme.colors.shadow,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 2,
-      elevation: 2,
-    },
-    productImageContainer: {
-      width: 60,
-      height: 60,
-      borderRadius: 8,
-      overflow: 'hidden',
-      marginRight: 12,
-    },
-    productImage: {
-      width: '100%',
-      height: '100%',
-    },
-    productImagePlaceholder: {
-      width: '100%',
-      height: '100%',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: theme.colors.backgroundSecondary,
     },
     productInfo: {
       flex: 1,
@@ -325,7 +249,6 @@ export default function TransferPage() {
       borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme.colors.backgroundTertiary,
     },
     requestCard: {
       backgroundColor: theme.colors.card,
@@ -334,11 +257,6 @@ export default function TransferPage() {
       marginBottom: 12,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      shadowColor: theme.colors.shadow,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 2,
-      elevation: 2,
     },
     requestHeader: {
       flexDirection: 'row',
@@ -394,252 +312,56 @@ export default function TransferPage() {
       fontSize: 14,
       fontWeight: '500',
     },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: theme.colors.overlay,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    filterModalContainer: {
-      width: isMobile ? '90%' : 400,
-      maxHeight: '80%',
-      backgroundColor: theme.colors.card,
-      borderRadius: 12,
-      overflow: 'hidden',
-    },
-    filterModalHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    filterModalTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: theme.colors.text.primary,
-    },
-    filterModalContent: {
-      padding: 16,
-    },
-    filterSection: {
-      marginBottom: 20,
-    },
-    filterSectionTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: theme.colors.text.primary,
-      marginBottom: 12,
-    },
-    filterOptions: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    filterOption: {
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.backgroundSecondary,
-    },
-    filterOptionSelected: {
-      backgroundColor: theme.colors.backgroundTertiary,
-      borderColor: theme.colors.primary,
-    },
-    filterOptionText: {
-      fontSize: 14,
-      color: theme.colors.text.secondary,
-    },
-    filterOptionTextSelected: {
-      color: theme.colors.primary,
-      fontWeight: '500',
-    },
-    filterModalFooter: {
-      flexDirection: 'row',
-      justifyContent: 'flex-end',
-      padding: 16,
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
-      gap: 12,
-    },
-    resetFilterButton: {
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    resetFilterText: {
-      fontSize: 14,
-      fontWeight: '500',
-      color: theme.colors.text.secondary,
-    },
-    applyFilterButton: {
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 8,
-      backgroundColor: theme.colors.primary,
-    },
-    applyFilterText: {
-      fontSize: 14,
-      fontWeight: '500',
-      color: theme.colors.text.inverse,
-    },
-    statusContainer: {
-      flex: 1,
-      padding: 16,
-    },
-    statusSection: {
-      marginBottom: 24,
-    },
-    statusSectionTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: theme.colors.text.primary,
-      marginBottom: 16,
-    },
-    statusCards: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 12,
-    },
-    statusCard: {
-      flex: 1,
-      minWidth: isMobile ? '45%' : 150,
-      backgroundColor: theme.colors.card,
-      borderRadius: 12,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      alignItems: 'center',
-    },
-    statusIconContainer: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 12,
-    },
-    statusValue: {
-      fontSize: 24,
-      fontWeight: '700',
-      color: theme.colors.text.primary,
-      marginBottom: 4,
-    },
-    statusLabel: {
-      fontSize: 14,
-      color: theme.colors.text.secondary,
-    },
-    activityList: {
-      gap: 12,
-    },
-    activityItem: {
-      flexDirection: 'row',
-      backgroundColor: theme.colors.card,
-      borderRadius: 12,
+    listContainer: {
       padding: 12,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
     },
-    activityIconContainer: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+    emptyContainer: {
       alignItems: 'center',
       justifyContent: 'center',
-      marginRight: 12,
+      paddingVertical: 64,
     },
-    activityContent: {
-      flex: 1,
-    },
-    activityTitle: {
-      fontSize: 14,
+    emptyText: {
+      fontSize: 18,
       fontWeight: '600',
-      color: theme.colors.text.primary,
-      marginBottom: 4,
-    },
-    activitySubtitle: {
-      fontSize: 12,
       color: theme.colors.text.secondary,
-      marginBottom: 8,
+      marginTop: 16,
     },
-    activityMeta: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    activityTime: {
-      fontSize: 12,
+    emptySubtext: {
+      fontSize: 14,
       color: theme.colors.text.muted,
+      marginTop: 8,
     },
-    activityStatus: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
-    },
-    activityStatusText: {
-      fontSize: 12,
-      fontWeight: '500',
-    },
-  });
-
-  const styles = createStyles();
+  }), [theme]);
 
   // Filter products based on search query and filters
-  const filteredProducts = mockProducts.filter(product => {
-    const matchesSearch =
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.productCode.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredProducts = useMemo(() => {
+    return mockProducts.filter(product => {
+      const matchesSearch =
+        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        product.productCode.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesCategory = !filters.category || product.category === filters.category;
-    const matchesLocation = !filters.location || product.location === filters.location;
+      const matchesCategory = !filters.category || product.category === filters.category;
+      const matchesLocation = !filters.location || product.location === filters.location;
 
-    return matchesSearch && matchesCategory && matchesLocation;
-  });
+      return matchesSearch && matchesCategory && matchesLocation;
+    });
+  }, [searchQuery, filters]);
 
   // Filter transfer requests
-  const filteredRequests = mockTransferRequests.filter(request => {
-    const matchesSearch =
-      request.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      request.id.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredRequests = useMemo(() => {
+    return mockTransferRequests.filter(request => {
+      const matchesSearch =
+        request.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        request.id.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatus = !filters.status || request.status === filters.status;
-    const matchesLocation = !filters.location ||
-      request.sourceLocation === filters.location ||
-      request.destinationLocation === filters.location;
+      const matchesStatus = !filters.status || request.status === filters.status;
 
-    return matchesSearch && matchesStatus && matchesLocation;
-  });
-
-  const handleTransferPress = (product: Product) => {
-    setSelectedProduct(product);
-    setShowTransferForm(true);
-  };
-
-  const handleRequestPress = (product: Product) => {
-    setSelectedProduct(product);
-    setShowRequestForm(true);
-  };
-
-  const handleTransferSubmit = (formData: any) => {
-    // In a real app, this would send the transfer data to the backend
-    console.log('Transfer submitted', formData);
-    setShowTransferForm(false);
-  };
-
-  const handleRequestSubmit = (formData: any) => {
-    // In a real app, this would send the request data to the backend
-    console.log('Request submitted', formData);
-    setShowRequestForm(false);
-  };
+      return matchesSearch && matchesStatus;
+    });
+  }, [searchQuery, filters]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    // In a real app, this would fetch fresh data
     setTimeout(() => {
       setRefreshing(false);
     }, 1000);
@@ -660,7 +382,7 @@ export default function TransferPage() {
         onPress={() => setActiveTab('requests')}
       >
         <Send size={20} color={activeTab === 'requests' ? theme.colors.primary : theme.colors.text.secondary} />
-        <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>Transfer Requests</Text>
+        <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>Requests</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -676,11 +398,11 @@ export default function TransferPage() {
   const renderSearchBar = () => (
     <View style={styles.searchContainer}>
       <View style={styles.searchInputContainer}>
-        <Search size={20} color={theme.colors.text.secondary} style={styles.searchIcon} />
+        <Search size={20} color={theme.colors.text.secondary} style={{ marginRight: 8 }} />
         <TextInput
           style={styles.searchInput}
-          placeholder={`Search ${activeTab === 'products' ? 'products' : 'transfer requests'}...`}
-          placeholderTextColor={theme.colors.text.secondary}
+          placeholder={`Search ${activeTab === 'products' ? 'products' : 'requests'}...`}
+          placeholderTextColor={theme.colors.text.muted}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -703,16 +425,6 @@ export default function TransferPage() {
 
   const renderProductItem = ({ item }: { item: Product }) => (
     <View style={styles.productCard}>
-      <View style={styles.productImageContainer}>
-        {item.image ? (
-          <Image source={{ uri: item.image }} style={styles.productImage} />
-        ) : (
-          <View style={[styles.productImagePlaceholder, { backgroundColor: theme.colors.backgroundSecondary }]}>
-            <Package size={24} color={theme.colors.text.secondary} />
-          </View>
-        )}
-      </View>
-
       <View style={styles.productInfo}>
         <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.productCode}>{item.productCode}</Text>
@@ -731,21 +443,12 @@ export default function TransferPage() {
       </View>
 
       <View style={styles.productActions}>
-        {isAdminOrSuperAdmin ? (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: `${theme.colors.primary}20` }]}
-            onPress={() => handleTransferPress(item)}
-          >
-            <Repeat size={20} color={theme.colors.primary} />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: `${theme.colors.accent}20` }]}
-            onPress={() => handleRequestPress(item)}
-          >
-            <Send size={20} color={theme.colors.accent} />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: `${theme.colors.primary}20` }]}
+          onPress={() => {/* Handle transfer */}}
+        >
+          <Repeat size={20} color={theme.colors.primary} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -837,285 +540,10 @@ export default function TransferPage() {
     );
   };
 
-  const renderFilterModal = () => (
-    <Modal
-      visible={showFilterModal}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setShowFilterModal(false)}
-    >
-      <TouchableOpacity
-        style={styles.modalOverlay}
-        activeOpacity={1}
-        onPress={() => setShowFilterModal(false)}
-      >
-        <View
-          style={styles.filterModalContainer}
-          onStartShouldSetResponder={() => true}
-          onTouchEnd={(e) => e.stopPropagation()}
-        >
-          <View style={styles.filterModalHeader}>
-            <Text style={styles.filterModalTitle}>Filter</Text>
-            <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-              <X size={20} color={theme.colors.text.primary} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.filterModalContent}>
-            {/* Category Filter */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Category</Text>
-              <View style={styles.filterOptions}>
-                {['Sofa Fabrics', 'Curtain Fabrics', 'Artificial Leather', 'Garments'].map((category) => (
-                  <TouchableOpacity
-                    key={category}
-                    style={[
-                      styles.filterOption,
-                      filters.category === category && styles.filterOptionSelected
-                    ]}
-                    onPress={() => setFilters(prev => ({
-                      ...prev,
-                      category: prev.category === category ? '' : category
-                    }))}
-                  >
-                    <Text
-                      style={[
-                        styles.filterOptionText,
-                        filters.category === category && styles.filterOptionTextSelected
-                      ]}
-                    >
-                      {category}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Location Filter */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Location</Text>
-              <View style={styles.filterOptions}>
-                {locations.map((location) => (
-                  <TouchableOpacity
-                    key={location}
-                    style={[
-                      styles.filterOption,
-                      filters.location === location && styles.filterOptionSelected
-                    ]}
-                    onPress={() => setFilters(prev => ({
-                      ...prev,
-                      location: prev.location === location ? '' : location
-                    }))}
-                  >
-                    <Text
-                      style={[
-                        styles.filterOptionText,
-                        filters.location === location && styles.filterOptionTextSelected
-                      ]}
-                    >
-                      {location}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Status Filter (for requests tab) */}
-            {activeTab === 'requests' && (
-              <View style={styles.filterSection}>
-                <Text style={styles.filterSectionTitle}>Status</Text>
-                <View style={styles.filterOptions}>
-                  {['pending', 'approved', 'rejected', 'completed'].map((status) => (
-                    <TouchableOpacity
-                      key={status}
-                      style={[
-                        styles.filterOption,
-                        filters.status === status && styles.filterOptionSelected
-                      ]}
-                      onPress={() => setFilters(prev => ({
-                        ...prev,
-                        status: prev.status === status ? '' : status
-                      }))}
-                    >
-                      <Text
-                        style={[
-                          styles.filterOptionText,
-                          filters.status === status && styles.filterOptionTextSelected
-                        ]}
-                      >
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-          </ScrollView>
-
-          <View style={styles.filterModalFooter}>
-            <TouchableOpacity
-              style={styles.resetFilterButton}
-              onPress={() => setFilters({
-                category: '',
-                location: '',
-                status: '',
-                dateRange: { start: null, end: null },
-              })}
-            >
-              <Text style={styles.resetFilterText}>Reset</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.applyFilterButton}
-              onPress={() => setShowFilterModal(false)}
-            >
-              <Text style={styles.applyFilterText}>Apply</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableOpacity>
-    </Modal>
-  );
-
-  const renderStatusTab = () => (
-    <ScrollView
-      style={styles.statusContainer}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <View style={styles.statusSection}>
-        <Text style={styles.statusSectionTitle}>Transfer Summary</Text>
-
-        <View style={styles.statusCards}>
-          <View style={styles.statusCard}>
-            <View style={[styles.statusIconContainer, { backgroundColor: `${theme.colors.primary}20` }]}>
-              <Repeat size={24} color={theme.colors.primary} />
-            </View>
-            <Text style={styles.statusValue}>24</Text>
-            <Text style={styles.statusLabel}>Total Transfers</Text>
-          </View>
-
-          <View style={styles.statusCard}>
-            <View style={[styles.statusIconContainer, { backgroundColor: `${theme.colors.status.success}20` }]}>
-              <CheckCircle size={24} color={theme.colors.status.success} />
-            </View>
-            <Text style={styles.statusValue}>18</Text>
-            <Text style={styles.statusLabel}>Completed</Text>
-          </View>
-
-          <View style={styles.statusCard}>
-            <View style={[styles.statusIconContainer, { backgroundColor: `${theme.colors.status.warning}20` }]}>
-              <Clock size={24} color={theme.colors.status.warning} />
-            </View>
-            <Text style={styles.statusValue}>6</Text>
-            <Text style={styles.statusLabel}>Pending</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.statusSection}>
-        <Text style={styles.statusSectionTitle}>Request Summary</Text>
-
-        <View style={styles.statusCards}>
-          <View style={styles.statusCard}>
-            <View style={[styles.statusIconContainer, { backgroundColor: `${theme.colors.accent}20` }]}>
-              <Send size={24} color={theme.colors.accent} />
-            </View>
-            <Text style={styles.statusValue}>32</Text>
-            <Text style={styles.statusLabel}>Total Requests</Text>
-          </View>
-
-          <View style={styles.statusCard}>
-            <View style={[styles.statusIconContainer, { backgroundColor: `${theme.colors.status.info}20` }]}>
-              <CheckCircle size={24} color={theme.colors.status.info} />
-            </View>
-            <Text style={styles.statusValue}>21</Text>
-            <Text style={styles.statusLabel}>Approved</Text>
-          </View>
-
-          <View style={styles.statusCard}>
-            <View style={[styles.statusIconContainer, { backgroundColor: `${theme.colors.status.error}20` }]}>
-              <XCircle size={24} color={theme.colors.status.error} />
-            </View>
-            <Text style={styles.statusValue}>5</Text>
-            <Text style={styles.statusLabel}>Rejected</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.statusSection}>
-        <Text style={styles.statusSectionTitle}>Recent Activity</Text>
-
-        <View style={styles.activityList}>
-          {mockTransferRequests.map((request) => {
-            let statusColor;
-            let StatusIcon;
-
-            switch (request.status) {
-              case 'pending':
-                statusColor = theme.colors.status.warning;
-                StatusIcon = Clock;
-                break;
-              case 'approved':
-                statusColor = theme.colors.status.info;
-                StatusIcon = CheckCircle;
-                break;
-              case 'rejected':
-                statusColor = theme.colors.status.error;
-                StatusIcon = XCircle;
-                break;
-              case 'completed':
-                statusColor = theme.colors.status.success;
-                StatusIcon = CheckCircle;
-                break;
-              default:
-                statusColor = theme.colors.text.secondary;
-                StatusIcon = AlertTriangle;
-            }
-
-            return (
-              <View key={request.id} style={styles.activityItem}>
-                <View style={[styles.activityIconContainer, { backgroundColor: `${statusColor}20` }]}>
-                  <StatusIcon size={16} color={statusColor} />
-                </View>
-
-                <View style={styles.activityContent}>
-                  <Text style={styles.activityTitle}>
-                    {request.productName} ({request.quantity} units)
-                  </Text>
-
-                  <Text style={styles.activitySubtitle}>
-                    {request.sourceLocation} → {request.destinationLocation}
-                  </Text>
-
-                  <View style={styles.activityMeta}>
-                    <Text style={styles.activityTime}>
-                      {request.requestedAt.toLocaleDateString()}
-                    </Text>
-
-                    <View style={[styles.activityStatus, { backgroundColor: `${statusColor}20` }]}>
-                      <Text style={[styles.activityStatusText, { color: statusColor }]}>
-                        {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-    </ScrollView>
-  );
-
-  return (
-    <SharedLayout title="Transfer">
-      <SafeAreaView style={styles.container}>
-        {renderTabBar()}
-        {renderSearchBar()}
-
-        {activeTab === 'products' && (
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'products':
+        return (
           <FlatList
             data={filteredProducts}
             renderItem={renderProductItem}
@@ -1124,10 +552,18 @@ export default function TransferPage() {
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Package size={48} color={theme.colors.text.muted} />
+                <Text style={styles.emptyText}>No products found</Text>
+                <Text style={styles.emptySubtext}>Try adjusting your search or filters</Text>
+              </View>
+            }
           />
-        )}
+        );
 
-        {activeTab === 'requests' && (
+      case 'requests':
+        return (
           <FlatList
             data={filteredRequests}
             renderItem={renderRequestItem}
@@ -1136,33 +572,46 @@ export default function TransferPage() {
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Send size={48} color={theme.colors.text.muted} />
+                <Text style={styles.emptyText}>No transfer requests found</Text>
+                <Text style={styles.emptySubtext}>Try adjusting your search or filters</Text>
+              </View>
+            }
           />
-        )}
+        );
 
-        {activeTab === 'status' && renderStatusTab()}
+      case 'status':
+        return (
+          <ScrollView
+            contentContainerStyle={styles.listContainer}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+          >
+            <View style={styles.emptyContainer}>
+              <BarChart size={48} color={theme.colors.text.muted} />
+              <Text style={styles.emptyText}>Transfer Status Overview</Text>
+              <Text style={styles.emptySubtext}>Status tracking and analytics coming soon</Text>
+            </View>
+          </ScrollView>
+        );
 
-        {renderFilterModal()}
+      default:
+        return null;
+    }
+  };
 
-        {showTransferForm && (
-          <TransferForm
-            visible={showTransferForm}
-            onClose={() => setShowTransferForm(false)}
-            onSubmit={handleTransferSubmit}
-            product={selectedProduct}
-            locations={locations}
-          />
-        )}
-
-        {showRequestForm && (
-          <TransferRequestForm
-            visible={showRequestForm}
-            onClose={() => setShowRequestForm(false)}
-            onSubmit={handleRequestSubmit}
-            product={selectedProduct}
-            locations={locations}
-          />
-        )}
-      </SafeAreaView>
+  return (
+    <SharedLayout title="Transfer">
+      <View style={styles.container}>
+        {renderTabBar()}
+        {renderSearchBar()}
+        {renderContent()}
+      </View>
     </SharedLayout>
   );
-}
+});
+
+export default TransferPage;

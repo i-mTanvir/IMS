@@ -55,7 +55,6 @@ import SharedLayout from '@/components/SharedLayout';
 import {
     ReportType,
     SalesReport,
-    ProductPerformanceReport,
     CustomerReport,
     InventoryReport,
     FinancialReport,
@@ -83,22 +82,7 @@ const mockSalesReports: SalesReport[] = [
         totalRevenue: 2847500,
         totalTransactions: 156,
         averageOrderValue: 18254,
-        topProducts: [
-            {
-                productId: '1',
-                productName: 'Premium Velvet Sofa Fabric',
-                quantitySold: 450,
-                revenue: 675000,
-                profitMargin: 35.2,
-            },
-            {
-                productId: '2',
-                productName: 'Silk Curtain Material',
-                quantitySold: 320,
-                revenue: 384000,
-                profitMargin: 28.5,
-            },
-        ],
+
         topCustomers: [
             {
                 customerId: '1',
@@ -168,7 +152,7 @@ const mockScheduledReports: ScheduledReport[] = [
     {
         id: '2',
         name: 'Weekly Inventory Report',
-        reportType: 'inventory',
+        reportType: 'sales',
         template: 'weekly-inventory-template',
         schedule: {
             frequency: 'weekly',
@@ -234,10 +218,7 @@ const mockBusinessIntelligence: BusinessIntelligence = {
             { date: new Date('2025-02-07'), predicted: 465000, confidence: 82 },
             { date: new Date('2025-02-14'), predicted: 510000, confidence: 78 },
         ],
-        demand: [
-            { productId: '1', predicted: 520, confidence: 88 },
-            { productId: '2', predicted: 380, confidence: 85 },
-        ],
+
         cashFlow: [
             { date: new Date('2025-02-01'), predicted: 285000, confidence: 90 },
             { date: new Date('2025-02-15'), predicted: 320000, confidence: 87 },
@@ -293,9 +274,7 @@ export default function ReportsPage() {
 
     const reportTypes = [
         { id: 'sales', label: 'Sales Reports', icon: DollarSign, color: theme.colors.status.success },
-        { id: 'product_performance', label: 'Product Performance', icon: Package, color: theme.colors.primary },
         { id: 'customer', label: 'Customer Reports', icon: Users, color: theme.colors.status.info },
-        { id: 'inventory', label: 'Inventory Reports', icon: Warehouse, color: theme.colors.status.warning },
         { id: 'financial', label: 'Financial Reports', icon: BarChart3, color: theme.colors.status.success },
         { id: 'sample', label: 'Sample Reports', icon: TestTube, color: theme.colors.primary },
     ];
@@ -942,7 +921,7 @@ export default function ReportsPage() {
                 {hasPermission('reports', 'add') && (
                     <TouchableOpacity
                         style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-                        onPress={() => router.push('/add')}
+                        onPress={() => Alert.alert('Add Report', 'Add new report functionality')}
                     >
                         <Plus size={20} color={theme.colors.text.inverse} />
                     </TouchableOpacity>

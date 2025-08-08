@@ -72,9 +72,10 @@ export default function TopNavBar({
   const pathname = usePathname();
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const { handleBackPress } = useCustomNavigation();
+  // Direct router usage for maximum performance
 
-  // Determine if we should show back button (not on dashboard)
-  const shouldShowBackButton = pathname !== '/dashboard' && !sidebarOpen;
+  // Always show menu button instead of back button for easy sidebar access
+  const shouldShowBackButton = false; // Disabled - always show menu button
 
   const getCurrentDate = () => {
     const date = new Date();
@@ -240,7 +241,7 @@ export default function TopNavBar({
               <TouchableOpacity
                 style={styles.backButton}
                 onPress={handleBackPress}
-                activeOpacity={0.7}
+                activeOpacity={0.3}
               >
                 <ArrowLeft size={24} color={theme.colors.text.primary} />
               </TouchableOpacity>
@@ -248,7 +249,7 @@ export default function TopNavBar({
               <TouchableOpacity
                 style={styles.menuButton}
                 onPress={onMenuPress}
-                activeOpacity={0.7}
+                activeOpacity={0.3}
               >
                 {sidebarOpen ? (
                   <X size={24} color={theme.colors.text.primary} />
@@ -294,7 +295,7 @@ export default function TopNavBar({
                 {showNotifications && (
                   <TouchableOpacity
                     style={styles.iconButton}
-                    onPress={onNotificationPress || (() => router.push('/notification'))}
+                    onPress={onNotificationPress || (() => router.replace('/notification'))}
                     activeOpacity={0.7}
                   >
                     <Bell size={20} color={theme.colors.text.secondary} />

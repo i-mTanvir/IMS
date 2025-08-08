@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -19,318 +19,201 @@ import {
   X,
   Building,
   Phone,
-  Mail,
   MapPin,
-  User,
   CreditCard,
-  Calendar,
-  Star,
-  ChevronDown,
   Camera,
   Upload,
   Sparkles,
-  UserPlus,
-  Check,
+  ChevronDown,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { SupplierService, CreateSupplierData } from '@/lib/services/SupplierService';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { height: screenHeight } = Dimensions.get('window');
+
+// Types
+interface Country {
+  id: string;
+  name: string;
+  icon: string;
+}
+
+interface FormStep {
+  title: string;
+  icon: any;
+  fields: string[];
+}
+
+interface FieldConfig {
+  label: string;
+  required?: boolean;
+  placeholder: string;
+  keyboardType?: string;
+  multiline?: boolean;
+  type?: string;
+  options?: Country[];
+}
 
 interface SupplierFormData {
   supplierName: string;
-  supplierCode: string;
   contactPerson: string;
-  email: string;
   phone: string;
+  email: string;
   alternatePhone: string;
   address: string;
   city: string;
   state: string;
   zipCode: string;
   country: string;
-  taxId: string;
-  bankName: string;
-  accountNumber: string;
-  routingNumber: string;
   paymentTerms: string;
   creditLimit: string;
-  rating: number;
   notes: string;
-  isActive: boolean;
-  profileImage: string | null;
 }
 
 interface SupplierAddFormProps {
   visible: boolean;
   onClose: () => void;
   onSubmit: (data: SupplierFormData) => void;
-  existingSupplier?: any;
+  existingSupplier?: SupplierFormData;
 }
 
+// Form configuration
+const formSteps: FormStep[] = [
+  {
+    title: 'Basic Info',
+    icon: Building,
+    fields: ['supplierName', 'contactPerson']
+  },
+  {
+    title: 'Contact',
+    icon: Phone,
+    fields: ['phone', 'email', 'alternatePhone']
+  },
+  {
+    title: 'Address',
+    icon: MapPin,
+    fields: ['address', 'city', 'state', 'zipCode', 'country']
+  },
+  {
+    title: 'Financial',
+    icon: CreditCard,
+    fields: ['paymentTerms', 'creditLimit', 'notes']
+  }
+];
 
-
-// Countries with flags
-const countries = [
+const countries: Country[] = [
   { id: 'bangladesh', name: 'Bangladesh', icon: '🇧🇩' },
   { id: 'china', name: 'China', icon: '🇨🇳' },
 ];
 
-export default function SupplierAddForm({ visible, onClose, onSubmit, existingSupplier }: SupplierAddFormProps) {
-  const { theme } = useTheme();
-  const { user, hasPermission } = useAuth();
-  const slideAnim = useRef(new Animated.Value(-screenHeight)).current;
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+// Field configurations
+const fieldConfig: Record<string, FieldConfig> = {
+  supplierName: { label: 'Supplier Name', required: true, placeholder: 'Enter supplier name' },
+  contactPerson: { label: 'Contact Person', required: true, placeholder: 'Enter contact person name' },
+  phone: { label: 'Phone Number', required: true, placeholder: 'Enter phone number', keyboardType: 'phone-pad' },
+  email: { label: 'Email Address', required: true, placeholder: 'Enter email address', keyboardType: 'email-address' },
+  alternatePhone: { label: 'Alternate Phone', placeholder: 'Enter alternate phone number', keyboardType: 'phone-pad' },
+  address: { label: 'Address', required: true, placeholder: 'Enter full address', multiline: true },
+  city: { label: 'City', placeholder: 'Enter city' },
+  state: { label: 'State', placeholder: 'Enter state' },
+  zipCode: { label: 'ZIP Code', placeholder: 'Enter ZIP code', keyboardType: 'numeric' },
+  country: { label: 'Country', type: 'dropdown', options: countries, placeholder: 'Select country' },
+  paymentTerms: { label: 'Payment Terms (Days)', placeholder: '30', keyboardType: 'numeric' },
+  creditLimit: { label: 'Credit Limit', placeholder: '0', keyboardType: 'numeric' },
+  notes: { label: 'Notes', placeholder: 'Enter additional notes (optional)', multiline: true },
+};
 
-  const initialFormState: SupplierFormData = {
-    supplierName: '',
-    supplierCode: '',
-    contactPerson: '',
-    email: '',
-    phone: '',
-    alternatePhone: '',
-    address: '',
-    city: '',
-    state: '',
-    zipCode: '',
-    country: 'Bangladesh',
-    taxId: '',
-    bankName: '',
-    accountNumber: '',
-    routingNumber: '',
-    paymentTerms: '30',
-    creditLimit: '0',
-    rating: 5,
-    notes: '',
-    isActive: true,
-    profileImage: null,
-  };
+// Reusable Components
+interface FormInputProps {
+  field: string;
+  fieldConfig: Record<string, FieldConfig>;
+  value: string;
+  onChangeText: (text: string) => void;
+  onBlur: () => void;
+  errors: Record<string, any>;
+  theme: any;
+}
 
-  const [formData, setFormData] = useState<SupplierFormData>(initialFormState);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showDropdowns, setShowDropdowns] = useState({
-    country: false,
-  });
-  const [currentStep, setCurrentStep] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+const FormInput: React.FC<FormInputProps> = ({ field, fieldConfig, value, onChangeText, onBlur, errors, theme }) => {
+  const config = fieldConfig[field];
 
-  const canAddSupplier = hasPermission('suppliers', 'add');
-
-  // Form steps for better UX
-  const steps = [
-    { title: 'Basic Info', icon: Building },
-    { title: 'Contact', icon: Phone },
-    { title: 'Address', icon: MapPin },
-    { title: 'Financial', icon: CreditCard },
-  ];
-
-  // Enhanced animations
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          tension: 50,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 50,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(overlayOpacity, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: -screenHeight,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.9,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [visible, overlayOpacity, slideAnim, scaleAnim]);
-
-  // Reset form when opening
-  useEffect(() => {
-    if (visible) {
-      if (existingSupplier) {
-        setFormData({
-          supplierName: existingSupplier.supplierName || '',
-          supplierCode: existingSupplier.supplierCode || '',
-          contactPerson: existingSupplier.contactPerson || '',
-          email: existingSupplier.email || '',
-          phone: existingSupplier.phone || '',
-          alternatePhone: existingSupplier.alternatePhone || '',
-          address: existingSupplier.address || '',
-          city: existingSupplier.city || '',
-          state: existingSupplier.state || '',
-          zipCode: existingSupplier.zipCode || '',
-          country: existingSupplier.country || 'Bangladesh',
-          taxId: existingSupplier.taxId || '',
-          bankName: existingSupplier.bankName || '',
-          accountNumber: existingSupplier.accountNumber || '',
-          routingNumber: existingSupplier.routingNumber || '',
-          paymentTerms: existingSupplier.paymentTerms?.toString() || '30',
-          creditLimit: existingSupplier.creditLimit?.toString() || '0',
-          rating: existingSupplier.rating || 5,
-          notes: existingSupplier.notes || '',
-          isActive: existingSupplier.isActive !== undefined ? existingSupplier.isActive : true,
-          profileImage: existingSupplier.profileImage || null,
-        });
-      } else {
-        setFormData(initialFormState);
-      }
-      setErrors({});
-      setCurrentStep(0);
-    }
-  }, [visible, existingSupplier]);
-
-  // Auto-generate supplier code when name changes
-  useEffect(() => {
-    if (formData.supplierName && !existingSupplier) {
-      const code = generateSupplierCode(formData.supplierName);
-      setFormData(prev => ({ ...prev, supplierCode: code }));
-    }
-  }, [formData.supplierName, existingSupplier]);
-
-  const generateSupplierCode = (name: string) => {
-    const cleanName = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const timestamp = Date.now().toString().slice(-4);
-    return `SUP-${cleanName.slice(0, 3)}${timestamp}`;
-  };
-
-  const handlePressOutside = () => {
-    setShowDropdowns({
-      country: false,
-    });
-  };
-
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.supplierName.trim()) {
-      newErrors.supplierName = 'Supplier name is required';
-    }
-
-    if (!formData.contactPerson.trim()) {
-      newErrors.contactPerson = 'Contact person is required';
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
-    }
-
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    }
-
-    if (!formData.address.trim()) {
-      newErrors.address = 'Address is required';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async () => {
-    if (!canAddSupplier) {
-      Alert.alert('Permission Denied', 'You do not have permission to add suppliers.');
-      return;
-    }
-
-    if (!validateForm()) return;
-
-    setIsLoading(true);
-    try {
-      const supplierData: CreateSupplierData = {
-        name: formData.supplierName.trim(),
-        supplier_type: 'wholesaler', // Default type, you can add selection
-        contact_person: formData.contactPerson.trim(),
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
-        address: formData.address.trim(),
-        city: formData.city.trim(),
-        state: formData.state.trim(),
-        country: formData.country || 'India',
-        postal_code: formData.zipCode.trim(),
-        tax_number: formData.taxId.trim(),
-        payment_terms: parseInt(formData.paymentTerms) || 30,
-        credit_limit: parseFloat(formData.creditLimit) || 0,
-        notes: formData.notes.trim(),
-      };
-
-      const newSupplier = await SupplierService.createSupplier(supplierData, user?.id || '');
-      
-      Alert.alert(
-        'Success',
-        `Supplier "${newSupplier.name}" has been created successfully!`,
-        [{ text: 'OK', onPress: () => {
-          onSubmit(formData);
-          onClose();
-        }}]
-      );
-    } catch (error: any) {
-      console.error('Failed to create supplier:', error);
-      Alert.alert('Error', error.message || 'Failed to create supplier');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleImagePicker = () => {
-    Alert.alert(
-      'Select Image',
-      'Choose an option',
-      [
-        { text: 'Camera', onPress: () => console.log('Camera selected') },
-        { text: 'Gallery', onPress: () => console.log('Gallery selected') },
-        { text: 'Cancel', style: 'cancel' },
-      ]
+  if (config?.type === 'dropdown') {
+    return (
+      <DropdownField
+        value={value}
+        onChange={onChangeText}
+        options={config.options || []}
+        placeholder={`Select ${config.label.toLowerCase()}`}
+        theme={theme}
+        error={errors[field]}
+      />
     );
+  }
+
+  return (
+    <TextInput
+      style={[
+        styles.input,
+        config?.multiline && styles.textArea,
+        errors[field] && styles.inputError,
+        { borderColor: theme.colors.border, backgroundColor: theme.colors.backgroundTertiary }
+      ]}
+      value={value}
+      onChangeText={onChangeText}
+      onBlur={onBlur}
+      placeholder={config?.placeholder}
+      placeholderTextColor={theme.colors.text.muted}
+      keyboardType={config?.keyboardType as any}
+      multiline={config?.multiline}
+      numberOfLines={config?.multiline ? 3 : 1}
+      autoCapitalize={config?.keyboardType === 'email-address' ? 'none' : 'sentences'}
+    />
+  );
+};
+
+interface DropdownFieldProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: Country[];
+  placeholder: string;
+  theme: any;
+  error?: any;
+}
+
+const DropdownField: React.FC<DropdownFieldProps> = ({ value, onChange, options, placeholder, theme, error }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState<'bottom' | 'top'>('bottom');
+  const dropdownRef = useRef<View>(null);
+
+  const handleDropdownToggle = () => {
+    if (!isOpen && dropdownRef.current) {
+      dropdownRef.current.measure((x, y, width, height, pageX, pageY) => {
+        const screenHeight = Dimensions.get('window').height;
+        const dropdownHeight = Math.min(options.length * 60, 200);
+        const spaceBelow = screenHeight - pageY - height - 100;
+        const spaceAbove = pageY - 100;
+        
+        if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+          setDropdownPosition('top');
+        } else {
+          setDropdownPosition('bottom');
+        }
+      });
+    }
+    setIsOpen(!isOpen);
   };
 
-  const renderEnhancedDropdown = (
-    type: keyof typeof showDropdowns,
-    items: any[],
-    value: string,
-    onSelect: (item: any) => void,
-    placeholder: string
-  ) => (
-    <View style={styles.dropdownContainer}>
+  return (
+    <View style={[styles.dropdownContainer, isOpen && styles.dropdownContainerOpen]} ref={dropdownRef}>
       <TouchableOpacity
         style={[
           styles.dropdownButton,
-          { borderColor: errors[type] ? theme.colors.status.error : theme.colors.primary + '30' },
-          showDropdowns[type] && styles.dropdownButtonActive,
+          {
+            borderColor: error ? theme.colors.status.error : theme.colors.border,
+            backgroundColor: theme.colors.backgroundTertiary
+          }
         ]}
-        onPress={() => {
-          setShowDropdowns(prev => {
-            const newState = { country: false };
-            newState[type] = !prev[type];
-            return newState;
-          });
-        }}
+        onPress={handleDropdownToggle}
       >
         <Text style={[
           styles.dropdownButtonText,
@@ -341,53 +224,38 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
         <ChevronDown
           size={20}
           color={theme.colors.text.muted}
-          style={[
-            styles.dropdownIcon,
-            showDropdowns[type] && { transform: [{ rotate: '180deg' }] }
-          ]}
+          style={[styles.dropdownIcon, isOpen && { transform: [{ rotate: '180deg' }] }]}
         />
       </TouchableOpacity>
 
-      {showDropdowns[type] && (
-        <View
-          style={[
-            styles.dropdownList,
-            { backgroundColor: theme.colors.background }
-          ]}
-        >
-          <ScrollView
-            nestedScrollEnabled={true}
-            style={{ maxHeight: 200 }}
-            showsVerticalScrollIndicator={false}
-            bounces={true}
-            scrollEventThrottle={16}
-            decelerationRate="normal"
+      {isOpen && (
+        <View style={[
+          styles.dropdownList,
+          dropdownPosition === 'top' ? styles.dropdownListTop : styles.dropdownListBottom,
+          { backgroundColor: theme.colors.background }
+        ]}>
+          <ScrollView 
+            style={{ maxHeight: 200 }} 
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="handled"
           >
-            {items.map((item, index) => (
+            {options.map((item: Country) => (
               <TouchableOpacity
                 key={item.id}
                 style={[
                   styles.dropdownItem,
-                  index === items.length - 1 && { borderBottomWidth: 0 }
+                  { borderBottomColor: theme.colors.border }
                 ]}
                 onPress={() => {
-                  onSelect(item);
-                  setShowDropdowns(prev => ({ ...prev, [type]: false }));
+                  onChange(item.name);
+                  setIsOpen(false);
                 }}
               >
-                <View style={styles.dropdownItemContent}>
-                  {item.icon && <Text style={styles.dropdownItemIcon}>{item.icon}</Text>}
-                  <View style={styles.dropdownItemTextContainer}>
-                    <Text style={styles.dropdownItemText}>
-                      {item.name}
-                    </Text>
-                    {item.description && (
-                      <Text style={styles.dropdownItemDescription}>
-                        {item.description}
-                      </Text>
-                    )}
-                  </View>
-                </View>
+                <Text style={styles.dropdownItemIcon}>{item.icon}</Text>
+                <Text style={[styles.dropdownItemText, { color: theme.colors.text.primary }]}>
+                  {item.name}
+                </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -395,702 +263,332 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
       )}
     </View>
   );
+};
 
-  const renderStepIndicator = () => (
-    <View style={styles.stepIndicator}>
-      {steps.map((step, index) => (
-        <View key={index} style={styles.stepItem}>
-          <View style={[
-            styles.stepCircle,
-            index <= currentStep && styles.stepCircleActive
-          ]}>
-            <step.icon
-              size={16}
-              color={index <= currentStep ? '#FFFFFF' : theme.colors.text.muted}
-            />
-          </View>
-          <Text style={[
-            styles.stepText,
-            index <= currentStep && styles.stepTextActive
-          ]}>
-            {step.title}
-          </Text>
-          {index < steps.length - 1 && (
-            <View style={[
-              styles.stepLine,
-              index < currentStep && styles.stepLineActive
-            ]} />
-          )}
+interface StepIndicatorProps {
+  currentStep: number;
+  steps: FormStep[];
+  theme: any;
+}
+
+const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, steps, theme }) => (
+  <View style={[styles.stepIndicator, { backgroundColor: theme.colors.backgroundSecondary }]}>
+    {steps.map((step: FormStep, index: number) => (
+      <View key={index} style={styles.stepItem}>
+        <View style={[
+          styles.stepCircle,
+          { backgroundColor: index <= currentStep ? theme.colors.primary : theme.colors.border }
+        ]}>
+          <step.icon
+            size={16}
+            color={index <= currentStep ? '#FFFFFF' : theme.colors.text.muted}
+          />
         </View>
-      ))}
-    </View>
-  );
+        <Text style={[
+          styles.stepText,
+          { color: index <= currentStep ? theme.colors.primary : theme.colors.text.muted }
+        ]}>
+          {step.title}
+        </Text>
+        {index < steps.length - 1 && (
+          <View style={[
+            styles.stepLine,
+            { backgroundColor: index < currentStep ? theme.colors.primary : theme.colors.border }
+          ]} />
+        )}
+      </View>
+    ))}
+  </View>
+);
 
-  const renderCurrentStep = () => {
-    switch (currentStep) {
-      case 0:
-        return renderBasicInfoStep();
-      case 1:
-        return renderContactStep();
-      case 2:
-        return renderAddressStep();
-      case 3:
-        return renderFinancialStep();
-      default:
-        return renderBasicInfoStep();
+export default function SupplierAddForm({ visible, onClose, onSubmit, existingSupplier }: SupplierAddFormProps) {
+  const { theme } = useTheme();
+  const { hasPermission } = useAuth();
+  const slideAnim = useRef(new Animated.Value(-screenHeight)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  const [currentStep, setCurrentStep] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState<SupplierFormData>({
+    supplierName: '',
+    contactPerson: '',
+    phone: '',
+    email: '',
+    alternatePhone: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    country: 'Bangladesh',
+    paymentTerms: '30',
+    creditLimit: '0',
+    notes: '',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const canAddSupplier = hasPermission('suppliers', 'add');
+
+  const generateSupplierCode = (name: string): string => {
+    const cleanName = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const timestamp = Date.now().toString().slice(-4);
+    return `SUP-${cleanName.slice(0, 3)}${timestamp}`;
+  };
+
+  // Animations
+  React.useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(overlayOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(overlayOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: -screenHeight, duration: 250, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 0.9, duration: 250, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible, slideAnim, overlayOpacity, scaleAnim]);
+
+  // Reset form when opening
+  React.useEffect(() => {
+    if (visible) {
+      if (existingSupplier) {
+        setFormData(existingSupplier);
+      } else {
+        setFormData({
+          supplierName: '',
+          contactPerson: '',
+          phone: '',
+          email: '',
+          alternatePhone: '',
+          address: '',
+          city: '',
+          state: '',
+          zipCode: '',
+          country: 'Bangladesh',
+          paymentTerms: '30',
+          creditLimit: '0',
+          notes: '',
+        });
+      }
+      setCurrentStep(0);
+      setErrors({});
+    }
+  }, [visible, existingSupplier]);
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    // Validate required fields
+    Object.entries(fieldConfig).forEach(([field, config]) => {
+      if (config.required && !formData[field as keyof SupplierFormData]?.trim()) {
+        newErrors[field] = `${config.label} is required`;
+      }
+    });
+
+    // Email validation
+    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const onSubmitForm = async () => {
+    if (!canAddSupplier) {
+      Alert.alert('Permission Denied', 'You do not have permission to add suppliers.');
+      return;
+    }
+
+    if (!validateForm()) {
+      Alert.alert('Validation Error', 'Please fill in all required fields correctly.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      Alert.alert(
+        'Success',
+        `Supplier "${formData.supplierName}" has been created successfully!`,
+        [{ text: 'OK', onPress: () => { onSubmit(formData); onClose(); } }]
+      );
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create supplier';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const renderBasicInfoStep = () => (
-    <View style={styles.stepContent}>
-      {/* Profile Image */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <Sparkles size={18} color={theme.colors.primary} /> Company Logo
-        </Text>
-        <TouchableOpacity style={styles.imageUploadContainer} onPress={handleImagePicker}>
-          <View style={styles.imageUploadContent}>
-            <View style={styles.imageUploadIcon}>
-              <Camera size={32} color={theme.colors.primary} />
-            </View>
-            <Text style={styles.imageUploadText}>Add company logo</Text>
-            <Text style={styles.imageUploadSubtext}>PNG, JPG up to 10MB</Text>
-            <View style={styles.uploadButton}>
-              <Upload size={16} color="#FFFFFF" />
-              <Text style={styles.uploadButtonText}>Choose File</Text>
-            </View>
+  const updateFormData = (field: keyof SupplierFormData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const handleImagePicker = () => {
+    Alert.alert('Select Image', 'Choose an option', [
+      { text: 'Camera', onPress: () => console.log('Camera selected') },
+      { text: 'Gallery', onPress: () => console.log('Gallery selected') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const renderStepContent = () => {
+    const currentStepFields = formSteps[currentStep].fields;
+    const isBasicStep = currentStep === 0;
+
+    return (
+      <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
+        {isBasicStep && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+              <Sparkles size={18} color={theme.colors.primary} /> Company Logo
+            </Text>
+            <TouchableOpacity style={styles.imageUploadContainer} onPress={handleImagePicker}>
+              <View style={styles.imageUploadContent}>
+                <Camera size={32} color={theme.colors.primary} />
+                <Text style={[styles.imageUploadText, { color: theme.colors.text.primary }]}>
+                  Add company logo
+                </Text>
+                <View style={[styles.uploadButton, { backgroundColor: theme.colors.primary }]}>
+                  <Upload size={16} color="#FFFFFF" />
+                  <Text style={styles.uploadButtonText}>Choose File</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-      </View>
+        )}
 
-      {/* Basic Information */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <Building size={18} color={theme.colors.primary} /> Basic Information
-        </Text>
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
+            {React.createElement(formSteps[currentStep].icon, { size: 18, color: theme.colors.primary })}
+            {' '}{formSteps[currentStep].title} Information
+          </Text>
 
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, styles.requiredLabel]}>Supplier Name *</Text>
-          <TextInput
-            style={[styles.input, errors.supplierName && styles.inputError]}
-            value={formData.supplierName}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, supplierName: text }))}
-            placeholder="Enter supplier name"
-            placeholderTextColor={theme.colors.text.muted}
-          />
-          {errors.supplierName && <Text style={styles.errorText}>{errors.supplierName}</Text>}
+          {currentStepFields.map((field) => {
+            const config = fieldConfig[field];
+            const isRowField = (field === 'city' || field === 'state') || (field === 'paymentTerms' || field === 'creditLimit');
+
+            if (isRowField && (field === 'city' || field === 'paymentTerms')) {
+              const nextField = field === 'city' ? 'state' : 'creditLimit';
+              const nextConfig = fieldConfig[nextField];
+              return (
+                <View key={field} style={styles.addressRow}>
+                  <View style={[styles.addressInput, { zIndex: 1002 }]}>
+                    <Text style={[
+                      styles.label,
+                      config?.required && styles.requiredLabel,
+                      { color: config?.required ? theme.colors.status.error : theme.colors.text.primary }
+                    ]}>
+                      {config?.label} {config?.required && '*'}
+                    </Text>
+                    <FormInput
+                      field={field}
+                      fieldConfig={fieldConfig}
+                      value={formData[field as keyof SupplierFormData]}
+                      onChangeText={(value) => updateFormData(field as keyof SupplierFormData, value)}
+                      onBlur={() => { }}
+                      errors={errors}
+                      theme={theme}
+                    />
+                    {errors[field] && (
+                      <Text style={[styles.errorText, { color: theme.colors.status.error }]}>
+                        {errors[field]}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={[styles.addressInput, { zIndex: 1001 }]}>
+                    <Text style={[
+                      styles.label,
+                      nextConfig?.required && styles.requiredLabel,
+                      { color: nextConfig?.required ? theme.colors.status.error : theme.colors.text.primary }
+                    ]}>
+                      {nextConfig?.label} {nextConfig?.required && '*'}
+                    </Text>
+                    <FormInput
+                      field={nextField}
+                      fieldConfig={fieldConfig}
+                      value={formData[nextField as keyof SupplierFormData]}
+                      onChangeText={(value) => updateFormData(nextField as keyof SupplierFormData, value)}
+                      onBlur={() => { }}
+                      errors={errors}
+                      theme={theme}
+                    />
+                    {errors[nextField] && (
+                      <Text style={[styles.errorText, { color: theme.colors.status.error }]}>
+                        {errors[nextField]}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              );
+            }
+
+            if (field === 'state' || field === 'creditLimit') return null; // Already rendered in row
+
+            // Assign higher z-index to fields that appear earlier in the form
+            const fieldIndex = currentStepFields.indexOf(field);
+            const zIndexValue = 2000 - fieldIndex * 100;
+            
+            return (
+              <View key={field} style={[styles.inputGroup, { zIndex: zIndexValue }]}>
+                <Text style={[
+                  styles.label,
+                  config?.required && styles.requiredLabel,
+                  { color: config?.required ? theme.colors.status.error : theme.colors.text.primary }
+                ]}>
+                  {config?.label} {config?.required && '*'}
+                </Text>
+                <FormInput
+                  field={field}
+                  fieldConfig={fieldConfig}
+                  value={formData[field as keyof SupplierFormData]}
+                  onChangeText={(value) => updateFormData(field as keyof SupplierFormData, value)}
+                  onBlur={() => { }}
+                  errors={errors}
+                  theme={theme}
+                />
+                {errors[field] && (
+                  <Text style={[styles.errorText, { color: theme.colors.status.error }]}>
+                    {errors[field]}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
         </View>
+      </ScrollView>
+    );
+  };
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Supplier Code</Text>
-          <TextInput
-            style={[styles.input, { opacity: 0.7 }]}
-            value={formData.supplierCode}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, supplierCode: text }))}
-            placeholder="Auto-generated"
-            placeholderTextColor={theme.colors.text.muted}
-            editable={!!existingSupplier}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, styles.requiredLabel]}>Contact Person *</Text>
-          <TextInput
-            style={[styles.input, errors.contactPerson && styles.inputError]}
-            value={formData.contactPerson}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, contactPerson: text }))}
-            placeholder="Enter contact person name"
-            placeholderTextColor={theme.colors.text.muted}
-          />
-          {errors.contactPerson && <Text style={styles.errorText}>{errors.contactPerson}</Text>}
-        </View>
-      </View>
-    </View>
-  );
-
-  const renderContactStep = () => (
-    <View style={styles.stepContent}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <Phone size={18} color={theme.colors.primary} /> Contact Information
-        </Text>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, styles.requiredLabel]}>Phone Number *</Text>
-          <TextInput
-            style={[styles.input, errors.phone && styles.inputError]}
-            value={formData.phone}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
-            placeholder="Enter phone number"
-            placeholderTextColor={theme.colors.text.muted}
-            keyboardType="phone-pad"
-          />
-          {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Alternate Phone</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.alternatePhone}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, alternatePhone: text }))}
-            placeholder="Enter alternate phone number"
-            placeholderTextColor={theme.colors.text.muted}
-            keyboardType="phone-pad"
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, styles.requiredLabel]}>Email Address *</Text>
-          <TextInput
-            style={[styles.input, errors.email && styles.inputError]}
-            value={formData.email}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
-            placeholder="Enter email address"
-            placeholderTextColor={theme.colors.text.muted}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
-        </View>
-
-
-      </View>
-    </View>
-  );
-
-  const renderAddressStep = () => (
-    <View style={styles.stepContent}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <MapPin size={18} color={theme.colors.primary} /> Address Information
-        </Text>
-
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, styles.requiredLabel]}>Address *</Text>
-          <TextInput
-            style={[styles.input, styles.textArea, errors.address && styles.inputError]}
-            value={formData.address}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, address: text }))}
-            placeholder="Enter full address"
-            placeholderTextColor={theme.colors.text.muted}
-            multiline
-            numberOfLines={3}
-          />
-          {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
-        </View>
-
-        <View style={styles.addressRow}>
-          <View style={styles.addressInput}>
-            <Text style={styles.label}>City</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.city}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, city: text }))}
-              placeholder="Enter city"
-              placeholderTextColor={theme.colors.text.muted}
-            />
-          </View>
-          <View style={styles.addressInput}>
-            <Text style={styles.label}>State</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.state}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, state: text }))}
-              placeholder="Enter state"
-              placeholderTextColor={theme.colors.text.muted}
-            />
-          </View>
-        </View>
-
-        <View style={styles.addressRow}>
-          <View style={styles.addressInput}>
-            <Text style={styles.label}>ZIP Code</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.zipCode}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, zipCode: text }))}
-              placeholder="Enter ZIP code"
-              placeholderTextColor={theme.colors.text.muted}
-              keyboardType="numeric"
-            />
-          </View>
-          <View style={styles.addressInput}>
-            <Text style={styles.label}>Country</Text>
-            {renderEnhancedDropdown(
-              'country',
-              countries,
-              countries.find(country => country.name === formData.country)?.name || formData.country,
-              (item) => setFormData(prev => ({ ...prev, country: item.name })),
-              'Select country'
-            )}
-          </View>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Tax ID</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.taxId}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, taxId: text }))}
-            placeholder="Enter tax identification number"
-            placeholderTextColor={theme.colors.text.muted}
-          />
-        </View>
-      </View>
-    </View>
-  );
-
-  const renderFinancialStep = () => (
-    <View style={styles.stepContent}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <CreditCard size={18} color={theme.colors.primary} /> Financial Information
-        </Text>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Bank Name</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.bankName}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, bankName: text }))}
-            placeholder="Enter bank name"
-            placeholderTextColor={theme.colors.text.muted}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Account Number</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.accountNumber}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, accountNumber: text }))}
-            placeholder="Enter account number"
-            placeholderTextColor={theme.colors.text.muted}
-            keyboardType="numeric"
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Routing Number</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.routingNumber}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, routingNumber: text }))}
-            placeholder="Enter routing number"
-            placeholderTextColor={theme.colors.text.muted}
-            keyboardType="numeric"
-          />
-        </View>
-
-        <View style={styles.addressRow}>
-          <View style={styles.addressInput}>
-            <Text style={styles.label}>Payment Terms (Days)</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.paymentTerms}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, paymentTerms: text }))}
-              placeholder="30"
-              placeholderTextColor={theme.colors.text.muted}
-              keyboardType="numeric"
-            />
-          </View>
-          <View style={styles.addressInput}>
-            <Text style={styles.label}>Credit Limit</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.creditLimit}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, creditLimit: text }))}
-              placeholder="0"
-              placeholderTextColor={theme.colors.text.muted}
-              keyboardType="numeric"
-            />
-          </View>
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Notes</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={formData.notes}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, notes: text }))}
-            placeholder="Enter additional notes (optional)"
-            placeholderTextColor={theme.colors.text.muted}
-            multiline
-            numberOfLines={3}
-          />
-        </View>
-      </View>
-    </View>
-  );
-
-  if (!canAddSupplier) {
-    return null;
-  }
-
-  const styles = StyleSheet.create({
-    overlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'flex-start',
-      paddingTop: 50,
-    },
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      marginHorizontal: 8,
-      elevation: 10,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 12,
-    },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-      backgroundColor: theme.colors.primary,
-      elevation: 4,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-    },
-    headerTitle: {
-      fontSize: 22,
-      fontWeight: '700',
-      color: '#FFFFFF',
-      letterSpacing: 0.5,
-    },
-    closeButton: {
-      padding: 8,
-      borderRadius: 20,
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    },
-    stepIndicator: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingVertical: 20,
-      backgroundColor: theme.colors.backgroundSecondary,
-    },
-    stepItem: {
-      flex: 1,
-      alignItems: 'center',
-      position: 'relative',
-    },
-    stepCircle: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.colors.border,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    stepCircleActive: {
-      backgroundColor: theme.colors.primary,
-    },
-    stepText: {
-      fontSize: 12,
-      color: theme.colors.text.muted,
-      textAlign: 'center',
-      fontWeight: '500',
-    },
-    stepTextActive: {
-      color: theme.colors.primary,
-      fontWeight: '600',
-    },
-    stepLine: {
-      position: 'absolute',
-      top: 20,
-      right: -25,
-      width: 50,
-      height: 2,
-      backgroundColor: theme.colors.border,
-      zIndex: -1,
-    },
-    stepLineActive: {
-      backgroundColor: theme.colors.primary,
-    },
-    content: {
-      flex: 1,
-    },
-    stepContent: {
-      flex: 1,
-      paddingHorizontal: 20,
-    },
-    section: {
-      marginBottom: 24,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: theme.colors.text.primary,
-      marginBottom: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      letterSpacing: 0.3,
-    },
-    imageUploadContainer: {
-      height: 140,
-      borderRadius: 16,
-      borderWidth: 2,
-      borderStyle: 'dashed',
-      borderColor: theme.colors.primary + '40',
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: theme.colors.primary + '08',
-      marginBottom: 16,
-    },
-    imageUploadContent: {
-      alignItems: 'center',
-    },
-    imageUploadIcon: {
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      backgroundColor: theme.colors.primary + '20',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 12,
-    },
-    imageUploadText: {
-      fontSize: 16,
-      color: theme.colors.text.primary,
-      fontWeight: '600',
-      marginBottom: 4,
-    },
-    imageUploadSubtext: {
-      fontSize: 12,
-      color: theme.colors.text.muted,
-      marginBottom: 12,
-    },
-    uploadButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: theme.colors.primary,
-      paddingHorizontal: 20,
-      paddingVertical: 10,
-      borderRadius: 25,
-      elevation: 2,
-      shadowColor: theme.colors.primary,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.3,
-      shadowRadius: 4,
-    },
-    uploadButtonText: {
-      color: '#FFFFFF',
-      fontSize: 14,
-      fontWeight: '600',
-      marginLeft: 8,
-    },
-    inputGroup: {
-      marginBottom: 20,
-    },
-    label: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.colors.text.primary,
-      marginBottom: 8,
-      letterSpacing: 0.2,
-    },
-    requiredLabel: {
-      color: theme.colors.status.error,
-    },
-    input: {
-      borderWidth: 2,
-      borderColor: theme.colors.border,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      fontSize: 16,
-      color: theme.colors.text.primary,
-      backgroundColor: theme.colors.backgroundTertiary,
-      fontWeight: '500',
-    },
-    inputError: {
-      borderColor: theme.colors.status.error,
-    },
-    textArea: {
-      height: 80,
-      textAlignVertical: 'top',
-    },
-    errorText: {
-      color: theme.colors.status.error,
-      fontSize: 12,
-      marginTop: 4,
-      fontWeight: '500',
-    },
-    dropdownContainer: {
-      position: 'relative',
-      zIndex: 99999,
-    },
-    dropdownButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      borderWidth: 2,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      backgroundColor: theme.colors.backgroundTertiary,
-    },
-    dropdownButtonActive: {
-      borderColor: theme.colors.primary,
-    },
-    dropdownButtonText: {
-      fontSize: 16,
-      fontWeight: '500',
-    },
-    dropdownIcon: {
-      marginLeft: 8,
-    },
-    dropdownList: {
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      right: 0,
-      borderRadius: 12,
-      marginTop: 4,
-      elevation: 999999,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-      zIndex: 999999,
-    },
-    dropdownItem: {
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    dropdownItemContent: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    dropdownItemIcon: {
-      fontSize: 20,
-      marginRight: 12,
-    },
-    dropdownItemTextContainer: {
-      flex: 1,
-    },
-    dropdownItemText: {
-      fontSize: 16,
-      color: theme.colors.text.primary,
-      fontWeight: '500',
-    },
-    dropdownItemDescription: {
-      fontSize: 12,
-      color: theme.colors.text.muted,
-      marginTop: 2,
-    },
-    addressRow: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-    addressInput: {
-      flex: 1,
-    },
-    ratingContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 8,
-    },
-    starButton: {
-      marginRight: 4,
-    },
-    ratingText: {
-      fontSize: 14,
-      color: theme.colors.text.muted,
-      marginLeft: 12,
-      fontWeight: '500',
-    },
-    footer: {
-      flexDirection: 'row',
-      gap: 16,
-      padding: 20,
-      borderTopWidth: 2,
-      borderTopColor: theme.colors.border,
-      backgroundColor: theme.colors.backgroundSecondary,
-    },
-    button: {
-      flex: 1,
-      paddingVertical: 16,
-      borderRadius: 12,
-      alignItems: 'center',
-      elevation: 2,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-    },
-    backButton: {
-      backgroundColor: theme.colors.backgroundTertiary,
-      borderWidth: 2,
-      borderColor: theme.colors.border,
-    },
-    backButtonText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: theme.colors.text.primary,
-    },
-    nextButton: {
-      backgroundColor: theme.colors.primary,
-    },
-    nextButtonText: {
-      fontSize: 16,
-      fontWeight: '700',
-      color: '#FFFFFF',
-      letterSpacing: 0.5,
-    },
-    submitButton: {
-      backgroundColor: '#10B981',
-    },
-    submitButtonText: {
-      fontSize: 16,
-      fontWeight: '700',
-      color: '#FFFFFF',
-      letterSpacing: 0.5,
-    },
-  });
+  if (!canAddSupplier) return null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <StatusBar backgroundColor="rgba(0, 0, 0, 0.5)" barStyle="light-content" />
-      <TouchableWithoutFeedback onPress={handlePressOutside}>
+      <TouchableWithoutFeedback onPress={() => { }}>
         <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
           <TouchableWithoutFeedback>
-            <Animated.View
-              style={[
-                styles.container,
-                {
-                  transform: [
-                    { translateY: slideAnim },
-                    { scale: scaleAnim }
-                  ]
-                }
-              ]}
-            >
+            <Animated.View style={[
+              styles.container,
+              {
+                backgroundColor: theme.colors.background,
+                transform: [{ translateY: slideAnim }, { scale: scaleAnim }]
+              }
+            ]}>
               <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               >
                 {/* Header */}
-                <View style={styles.header}>
+                <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
                   <Text style={styles.headerTitle}>✨ Add New Supplier</Text>
                   <TouchableOpacity style={styles.closeButton} onPress={onClose}>
                     <X size={24} color="#FFFFFF" />
@@ -1098,41 +596,45 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
                 </View>
 
                 {/* Step Indicator */}
-                {renderStepIndicator()}
+                <StepIndicator currentStep={currentStep} steps={formSteps} theme={theme} />
 
                 {/* Content */}
-                <ScrollView
-                  style={styles.content}
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ paddingBottom: 20 }}
-                  bounces={true}
-                  scrollEventThrottle={16}
-                  decelerationRate="normal"
-                >
-                  {renderCurrentStep()}
-                </ScrollView>
+                {renderStepContent()}
 
                 {/* Footer */}
-                <View style={styles.footer}>
+                <View style={[styles.footer, {
+                  backgroundColor: theme.colors.backgroundSecondary,
+                  borderTopColor: theme.colors.border
+                }]}>
                   {currentStep > 0 ? (
                     <TouchableOpacity
-                      style={[styles.button, styles.backButton]}
+                      style={[styles.button, styles.backButton, {
+                        backgroundColor: theme.colors.backgroundTertiary,
+                        borderColor: theme.colors.border
+                      }]}
                       onPress={() => setCurrentStep(prev => prev - 1)}
                     >
-                      <Text style={styles.backButtonText}>← Back</Text>
+                      <Text style={[styles.backButtonText, { color: theme.colors.text.primary }]}>
+                        ← Back
+                      </Text>
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
-                      style={[styles.button, styles.backButton]}
+                      style={[styles.button, styles.backButton, {
+                        backgroundColor: theme.colors.backgroundTertiary,
+                        borderColor: theme.colors.border
+                      }]}
                       onPress={onClose}
                     >
-                      <Text style={styles.backButtonText}>Cancel</Text>
+                      <Text style={[styles.backButtonText, { color: theme.colors.text.primary }]}>
+                        Cancel
+                      </Text>
                     </TouchableOpacity>
                   )}
 
-                  {currentStep < steps.length - 1 ? (
+                  {currentStep < formSteps.length - 1 ? (
                     <TouchableOpacity
-                      style={[styles.button, styles.nextButton]}
+                      style={[styles.button, styles.nextButton, { backgroundColor: theme.colors.primary }]}
                       onPress={() => setCurrentStep(prev => prev + 1)}
                     >
                       <Text style={styles.nextButtonText}>Next →</Text>
@@ -1140,7 +642,7 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
                   ) : (
                     <TouchableOpacity
                       style={[styles.button, styles.submitButton]}
-                      onPress={handleSubmit}
+                      onPress={onSubmitForm}
                       disabled={isLoading}
                     >
                       <Text style={styles.submitButtonText}>
@@ -1157,3 +659,277 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
     </Modal>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    paddingTop: 50,
+  },
+  container: {
+    flex: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginHorizontal: 8,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  stepIndicator: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  stepItem: {
+    flex: 1,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  stepCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  stepText: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  stepLine: {
+    position: 'absolute',
+    top: 20,
+    right: -25,
+    width: 50,
+    height: 2,
+    zIndex: -1,
+  },
+  stepContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    letterSpacing: 0.3,
+  },
+  imageUploadContainer: {
+    height: 140,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#3B82F640',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#3B82F608',
+    marginBottom: 16,
+  },
+  imageUploadContent: {
+    alignItems: 'center',
+  },
+  imageUploadText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginVertical: 8,
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+    elevation: 2,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  uploadButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    letterSpacing: 0.2,
+  },
+  requiredLabel: {
+    // Color set dynamically
+  },
+  input: {
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  dropdownContainer: {
+    position: 'relative',
+    zIndex: 1000,
+  },
+  dropdownContainerOpen: {
+    zIndex: 9999,
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  dropdownIcon: {
+    marginLeft: 8,
+  },
+  dropdownList: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    borderRadius: 12,
+    elevation: 10000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    zIndex: 10000,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  dropdownListBottom: {
+    top: '100%',
+    marginTop: 4,
+  },
+  dropdownListTop: {
+    bottom: '100%',
+    marginBottom: 4,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  dropdownItemIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  addressRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  addressInput: {
+    flex: 1,
+  },
+  footer: {
+    flexDirection: 'row',
+    gap: 16,
+    padding: 20,
+    borderTopWidth: 2,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  backButton: {
+    borderWidth: 2,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  nextButton: {
+    // backgroundColor set dynamically
+  },
+  nextButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  submitButton: {
+    backgroundColor: '#10B981',
+  },
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+});
+
+
+
+
