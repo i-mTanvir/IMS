@@ -381,7 +381,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, steps, theme
 
 export default function CustomerAddForm({ visible, onClose, onSubmit, existingCustomer }: CustomerAddFormProps) {
   const { theme } = useTheme();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const slideAnim = useRef(new Animated.Value(-screenHeight)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -507,7 +507,6 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
       };
 
       // Get current user from auth context
-      const { user } = useAuth();
       if (!user?.id) {
         Alert.alert('Error', 'User not authenticated');
         return;
@@ -520,15 +519,44 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
         Alert.alert(
           'Success',
           `Customer "${result.data.name}" has been ${existingCustomer ? 'updated' : 'created'} successfully!`,
-          [{ text: 'OK', onPress: () => { onSubmit(result.data); onClose(); } }]
+          [{ text: 'OK', onPress: () => {
+            // Transform the database result back to form data format
+            const transformedData: CustomerFormData = {
+              name: result.data!.name,
+              email: result.data!.email || '',
+              phone: result.data!.phone || '',
+              address: result.data!.address || '',
+              company_name: result.data!.company_name || '',
+              delivery_address: result.data!.delivery_address || '',
+              customer_type: result.data!.customer_type,
+              total_purchases: result.data!.total_purchases.toString(),
+              total_due: result.data!.total_due.toString(),
+              red_list_status: result.data!.red_list_status,
+              fixed_coupon: result.data!.fixed_coupon || '',
+              profile_picture: result.data!.profile_picture || ''
+            };
+            onSubmit(transformedData);
+            onClose();
+          } }]
         );
       } else {
         Alert.alert('Error', result.error || 'Failed to save customer');
       }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save customer';
-      Alert.alert('Error', errorMessage);
       console.error('Customer creation error:', error);
+
+      // Check if this is a hook call error
+      if (error instanceof Error && error.message.includes('Invalid hook call')) {
+        console.error('Hook call error detected in CustomerAddForm');
+        console.error('Stack trace:', error.stack);
+        Alert.alert(
+          'Development Error',
+          'Invalid hook call detected. This is a development issue that needs to be fixed.'
+        );
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to save customer';
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }

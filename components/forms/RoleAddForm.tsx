@@ -53,7 +53,7 @@ interface RoleAddFormProps {
 
 export default function RoleAddForm({ visible, onClose, onSubmit, existingRole }: RoleAddFormProps) {
   const { theme } = useTheme();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const slideAnim = useRef(new Animated.Value(-screenHeight)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -368,7 +368,6 @@ export default function RoleAddForm({ visible, onClose, onSubmit, existingRole }
       };
 
       // Get current user from auth context
-      const { user } = useAuth();
       if (!user?.id) {
         Alert.alert('Error', 'User not authenticated');
         return;
