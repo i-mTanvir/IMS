@@ -31,27 +31,11 @@ import {
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { FormService, type ProductFormData as FormServiceProductData } from '@/lib/services/formService';
+import type { Category, Supplier, Location } from '@/lib/supabase';
 
 const { height: screenHeight } = Dimensions.get('window');
 
 // Types
-interface Category {
-  id: number;
-  name: string;
-  description: string;
-}
-
-interface Supplier {
-  id: number;
-  name: string;
-  contact: string;
-}
-
-interface Location {
-  id: number;
-  name: string;
-  description: string;
-}
 
 interface ProductStatus {
   id: string;
@@ -145,24 +129,7 @@ const formSteps: FormStep[] = [
   }
 ];
 
-// Mock data - replace with actual API calls
-const mockCategories: Category[] = [
-  { id: 1, name: 'Electronics', description: 'Electronic products' },
-  { id: 2, name: 'Textiles', description: 'Fabric and textile products' },
-  { id: 3, name: 'Hardware', description: 'Hardware items' },
-];
-
-const mockSuppliers: Supplier[] = [
-  { id: 1, name: 'ABC Suppliers Ltd.', contact: '+880 123456789' },
-  { id: 2, name: 'XYZ Trading Co.', contact: '+880 987654321' },
-  { id: 3, name: 'Global Imports', contact: '+880 555666777' },
-];
-
-const mockLocations: Location[] = [
-  { id: 1, name: 'Warehouse A', description: 'Main warehouse' },
-  { id: 2, name: 'Warehouse B', description: 'Secondary warehouse' },
-  { id: 3, name: 'Store Front', description: 'Retail store' },
-];
+// Data will be loaded from database
 
 // Mock existing products for restocking
 const mockExistingProducts: ExistingProduct[] = [
@@ -282,100 +249,7 @@ const measurementUnits: MeasurementUnit[] = [
   { id: 'bundle', name: 'Bundle', symbol: 'bundle', description: 'Bundled items' },
 ];
 
-// Field configurations
-const fieldConfig: Record<string, FieldConfig> = {
-  name: {
-    label: 'Product Name',
-    required: true,
-    placeholder: 'Enter product name'
-  },
-  product_code: {
-    label: 'Product Code',
-    placeholder: 'Auto-generated',
-    disabled: true
-  },
-  category_id: {
-    label: 'Category',
-    required: true,
-    type: 'dropdown',
-    options: mockCategories,
-    placeholder: 'Select category'
-  },
-  description: {
-    label: 'Description',
-    placeholder: 'Enter product description',
-    multiline: true
-  },
-  purchase_price: {
-    label: 'Purchase Price',
-    required: true,
-    placeholder: '0.00',
-    keyboardType: 'numeric'
-  },
-  selling_price: {
-    label: 'Selling Price',
-    required: true,
-    placeholder: '0.00',
-    keyboardType: 'numeric'
-  },
-  unit_of_measurement: {
-    label: 'Unit of Measurement',
-    required: true,
-    type: 'dropdown',
-    options: measurementUnits,
-    placeholder: 'Select measurement unit'
-  },
-  per_unit_price: {
-    label: 'Per Unit Price',
-    placeholder: 'Auto-calculated',
-    keyboardType: 'numeric',
-    info: 'Will be calculated based on selling price and unit'
-  },
-  supplier_id: {
-    label: 'Supplier',
-    required: true,
-    type: 'dropdown',
-    options: mockSuppliers,
-    placeholder: 'Select supplier'
-  },
-  location_id: {
-    label: 'Location',
-    required: true,
-    type: 'dropdown',
-    options: mockLocations,
-    placeholder: 'Select location'
-  },
-  minimum_threshold: {
-    label: 'Minimum Threshold',
-    placeholder: '100',
-    keyboardType: 'numeric',
-    info: 'Alert when stock goes below this amount'
-  },
-  current_stock: {
-    label: 'Current Stock',
-    placeholder: '0',
-    keyboardType: 'numeric'
-  },
-  lot_number: {
-    label: 'Lot Number',
-    placeholder: 'Auto-generated',
-    disabled: true,
-    info: 'Automatically assigned based on previous lots'
-  },
-  product_status: {
-    label: 'Product Status',
-    type: 'dropdown',
-    options: productStatuses,
-    defaultValue: 'active',
-    placeholder: 'Select status'
-  },
-  wastage_status: {
-    label: 'Wastage Status',
-    type: 'boolean',
-    info: 'Mark if product is in wastage',
-    placeholder: 'No'
-  },
-};
+// Field configurations will be created inside component with real data
 
 // Reusable Components
 interface FormInputProps {
@@ -727,6 +601,107 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
   const [productImages, setProductImages] = useState<string[]>([]);
   const [productType, setProductType] = useState<'new' | 'existing'>('new');
   const [selectedExistingProduct, setSelectedExistingProduct] = useState<ExistingProduct | null>(null);
+
+  // Real data from database
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+
+  // Field configurations with real data
+  const fieldConfig: Record<string, FieldConfig> = {
+    name: {
+      label: 'Product Name',
+      required: true,
+      placeholder: 'Enter product name'
+    },
+    product_code: {
+      label: 'Product Code',
+      placeholder: 'Auto-generated',
+      disabled: true
+    },
+    category_id: {
+      label: 'Category',
+      required: true,
+      type: 'dropdown',
+      options: categories,
+      placeholder: 'Select category'
+    },
+    description: {
+      label: 'Description',
+      placeholder: 'Enter product description',
+      multiline: true
+    },
+    purchase_price: {
+      label: 'Purchase Price',
+      required: true,
+      placeholder: '0.00',
+      keyboardType: 'numeric'
+    },
+    selling_price: {
+      label: 'Selling Price',
+      required: true,
+      placeholder: '0.00',
+      keyboardType: 'numeric'
+    },
+    unit_of_measurement: {
+      label: 'Unit of Measurement',
+      required: true,
+      type: 'dropdown',
+      options: measurementUnits,
+      placeholder: 'Select measurement unit'
+    },
+    per_unit_price: {
+      label: 'Per Unit Price',
+      placeholder: 'Auto-calculated',
+      keyboardType: 'numeric',
+      info: 'Will be calculated based on selling price and unit'
+    },
+    supplier_id: {
+      label: 'Supplier',
+      required: true,
+      type: 'dropdown',
+      options: suppliers,
+      placeholder: 'Select supplier'
+    },
+    location_id: {
+      label: 'Location',
+      required: true,
+      type: 'dropdown',
+      options: locations,
+      placeholder: 'Select location'
+    },
+    minimum_threshold: {
+      label: 'Minimum Threshold',
+      placeholder: '100',
+      keyboardType: 'numeric',
+      info: 'Alert when stock goes below this amount'
+    },
+    current_stock: {
+      label: 'Current Stock',
+      placeholder: '0',
+      keyboardType: 'numeric'
+    },
+    lot_number: {
+      label: 'Lot Number',
+      placeholder: 'Auto-generated',
+      disabled: true,
+      info: 'Automatically assigned based on previous lots'
+    },
+    product_status: {
+      label: 'Product Status',
+      type: 'dropdown',
+      options: productStatuses,
+      defaultValue: 'active',
+      placeholder: 'Select status'
+    },
+    wastage_status: {
+      label: 'Wastage Status',
+      type: 'boolean',
+      info: 'Mark if product is in wastage',
+      placeholder: 'No'
+    },
+  };
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     product_code: '',
@@ -849,17 +824,26 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
   React.useEffect(() => {
     const loadFormData = async () => {
       try {
-        const [categories, suppliers, locations] = await Promise.all([
+        setIsLoadingData(true);
+        const [categoriesData, suppliersData, locationsData] = await Promise.all([
           FormService.getCategories(),
           FormService.getSuppliers(),
           FormService.getLocations()
         ]);
 
-        // Update the mock data with real data from Supabase
-        // This would typically update state variables for categories, suppliers, locations
-        console.log('Loaded form data:', { categories, suppliers, locations });
+        setCategories(categoriesData);
+        setSuppliers(suppliersData);
+        setLocations(locationsData);
+
+        console.log('Loaded form data:', {
+          categories: categoriesData.length,
+          suppliers: suppliersData.length,
+          locations: locationsData.length
+        });
       } catch (error) {
         console.error('Failed to load form data:', error);
+      } finally {
+        setIsLoadingData(false);
       }
     };
 
