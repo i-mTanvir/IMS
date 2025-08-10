@@ -8,11 +8,12 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
-import { TrendingUp, DollarSign, Package, AlertTriangle } from 'lucide-react-native';
+import { TrendingUp, DollarSign, Package, AlertTriangle, Database, CheckCircle } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import SharedLayout from '@/components/SharedLayout';
+import { supabase } from '@/lib/supabase';
 
 const { width } = Dimensions.get('window');
 const isMobile = width < 768;
@@ -30,6 +31,8 @@ const Dashboard = React.memo(function Dashboard() {
   const { user, logout } = useAuth();
   const { theme } = useTheme();
   const [isLoading, setIsLoading] = useState(false); // Always false for instant loading
+  const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -39,6 +42,31 @@ const Dashboard = React.memo(function Dashboard() {
       console.error('Logout error:', error);
     }
   }, [logout, router]);
+
+  // Check Supabase connection and fetch dashboard stats
+  useEffect(() => {
+    const checkSupabaseConnection = async () => {
+      try {
+        // Test connection by fetching dashboard stats
+        const { data, error } = await supabase.rpc('get_dashboard_stats');
+
+        if (error) {
+          console.error('Supabase connection error:', error);
+          setSupabaseStatus('disconnected');
+        } else {
+          setSupabaseStatus('connected');
+          setDashboardStats(data);
+        }
+      } catch (error) {
+        console.error('Failed to connect to Supabase:', error);
+        setSupabaseStatus('disconnected');
+      }
+    };
+
+    if (user) {
+      checkSupabaseConnection();
+    }
+  }, [user]);
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -113,10 +141,58 @@ const Dashboard = React.memo(function Dashboard() {
   return (
     <SharedLayout title="Dashboard" onLogout={handleLogout}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Supabase Connection Status */}
+        <View style={[styles.kpiCard, {
+          backgroundColor: supabaseStatus === 'connected' ? theme.colors.status.success + '20' : theme.colors.status.error + '20',
+          borderLeftColor: supabaseStatus === 'connected' ? theme.colors.status.success : theme.colors.status.error,
+          borderLeftWidth: 3,
+          marginBottom: 16
+        }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={styles.kpiTitle}>Supabase Database</Text>
+            {supabaseStatus === 'checking' ? (
+              <ActivityIndicator size={16} color={theme.colors.primary} />
+            ) : (
+              <CheckCircle
+                size={16}
+                color={supabaseStatus === 'connected' ? theme.colors.status.success : theme.colors.status.error}
+              />
+            )}
+          </View>
+          <Text style={[styles.kpiValue, { fontSize: 16 }]}>
+            {supabaseStatus === 'connected' ? 'Connected' :
+             supabaseStatus === 'checking' ? 'Checking...' : 'Disconnected'}
+          </Text>
+          <Text style={[styles.kpiChange, {
+            color: supabaseStatus === 'connected' ? theme.colors.status.success : theme.colors.status.error
+          }]}>
+            Project: dbwoaiihjffzfqsozgjn
+          </Text>
+        </View>
+
+        {/* User Information */}
+        {user && (
+          <View style={[styles.kpiCard, {
+            backgroundColor: theme.colors.primary + '10',
+            borderLeftColor: theme.colors.primary,
+            borderLeftWidth: 3,
+            marginBottom: 16
+          }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.kpiTitle}>Current User</Text>
+              <Database size={16} color={theme.colors.primary} />
+            </View>
+            <Text style={[styles.kpiValue, { fontSize: 16 }]}>{user.name}</Text>
+            <Text style={[styles.kpiChange, { color: theme.colors.primary }]}>
+              Role: {user.role.toUpperCase()} | ID: {user.id}
+            </Text>
+          </View>
+        )}
+
         <View style={styles.kpiGrid}>
           <KPICard
             title="TOTAL SALES"
-            value={kpiData.totalSales.value}
+            value={dashboardStats?.total_sales_today || kpiData.totalSales.value}
             change={kpiData.totalSales.change}
             icon={DollarSign}
             color={theme.colors.primary}
@@ -129,15 +205,15 @@ const Dashboard = React.memo(function Dashboard() {
             color={theme.colors.status.success}
           />
           <KPICard
-            title="TOTAL STOCK"
-            value={kpiData.totalStock.value}
+            title="TOTAL PRODUCTS"
+            value={dashboardStats?.total_products || kpiData.totalStock.value}
             change={kpiData.totalStock.change}
             icon={Package}
             color={theme.colors.status.info}
           />
           <KPICard
             title="LOW STOCK"
-            value={kpiData.lowStock.value}
+            value={dashboardStats?.low_stock_products || kpiData.lowStock.value}
             change={kpiData.lowStock.change}
             icon={AlertTriangle}
             color={theme.colors.status.warning}

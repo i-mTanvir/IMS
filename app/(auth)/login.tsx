@@ -29,23 +29,23 @@ interface LoginCredentials {
   rememberMe: boolean;
 }
 
-// Demo credentials for testing
+// Demo credentials for testing (updated for Supabase)
 const demoCredentials = [
   {
     email: 'admin@serranotex.com',
-    password: 'Admin123!',
+    password: 'admin123',
     role: 'Super Admin',
     description: 'Full system access'
   },
   {
-    email: 'sales@serranotex.com',
-    password: 'Sales123!',
+    email: 'sales1@serranotex.com',
+    password: 'password',
     role: 'Sales Manager',
     description: 'Sales and customer management'
   },
   {
     email: 'investor@serranotex.com',
-    password: 'Investor123!',
+    password: 'password',
     role: 'Investor',
     description: 'Read-only dashboard access'
   }
@@ -91,77 +91,24 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Find matching demo user
-      const demoUser = demoCredentials.find(
-        user => user.email === credentials.email && user.password === credentials.password
-      );
+      // Use Supabase authentication
+      const result = await login({
+        email: credentials.email,
+        password: credentials.password
+      });
 
-      if (!demoUser) {
-        Alert.alert('Login Failed', 'Invalid email or password. Please use one of the demo credentials.');
+      if (!result.success) {
+        Alert.alert('Login Failed', result.error || 'Invalid email or password. Please use one of the demo credentials.');
         setIsLoading(false);
         return;
       }
-
-      // Create mock permissions based on role
-      const getPermissionsByRole = (role: string) => {
-        const basePermissions = {
-          dashboard: { view: true },
-          products: { view: true, add: false, edit: false, delete: false },
-          inventory: { view: true, add: false, edit: false, delete: false, transfer: false },
-          sales: { view: true, add: false, edit: false, delete: false, invoice: false },
-          customers: { view: true, add: false, edit: false, delete: false },
-          suppliers: { view: true, add: false, edit: false, delete: false },
-          samples: { view: true, add: false, edit: false, delete: false },
-          reports: { view: true, export: false },
-          notifications: { view: true, manage: false },
-          activityLogs: { view: false },
-          settings: { view: false, userManagement: false, systemSettings: false },
-          help: { view: true }
-        };
-
-        if (role === 'Super Admin') {
-          // Super admin gets all permissions
-          Object.keys(basePermissions).forEach(module => {
-            const moduleKey = module as keyof typeof basePermissions;
-            Object.keys(basePermissions[moduleKey]).forEach(action => {
-              const actionKey = action as keyof typeof basePermissions[typeof moduleKey];
-              (basePermissions[moduleKey] as any)[actionKey] = true;
-            });
-          });
-        } else if (role === 'Sales Manager') {
-          // Sales manager gets sales-related permissions
-          basePermissions.products = { view: true, add: true, edit: true, delete: false };
-          basePermissions.inventory = { view: true, add: true, edit: true, delete: false, transfer: true };
-          basePermissions.sales = { view: true, add: true, edit: true, delete: false, invoice: true };
-          basePermissions.customers = { view: true, add: true, edit: true, delete: false };
-          basePermissions.suppliers = { view: true, add: true, edit: true, delete: false };
-          basePermissions.samples = { view: true, add: true, edit: true, delete: false };
-          basePermissions.reports = { view: true, export: true };
-          basePermissions.notifications = { view: true, manage: false };
-        }
-
-        return basePermissions;
-      };
-
-      const userSession = {
-        id: `demo-${Date.now()}`,
-        email: demoUser.email,
-        name: demoUser.role,
-        role: demoUser.role.toLowerCase().replace(' ', '_'),
-        permissions: getPermissionsByRole(demoUser.role),
-        assignedLocations: ['main-warehouse', 'retail-store'],
-        loginTime: new Date().toISOString()
-      };
-
-      // Login user
-      await login(userSession);
 
       // Navigate to dashboard
       router.replace('/dashboard');
 
       Alert.alert(
         'Login Successful',
-        `Welcome back, ${demoUser.role}!\nThis is a demo version with mock data.`
+        `Welcome back!\nConnected to Supabase database.`
       );
     } catch (error) {
       console.error('Login error:', error);

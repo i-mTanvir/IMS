@@ -1,0 +1,201 @@
+﻿import 'react-native-url-polyfill/auto';
+import { createClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Supabase configuration
+const supabaseUrl = 'https://dbwoaiihjffzfqsozgjn.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRid29haWloamZmemZxc296Z2puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ2MzYyODEsImV4cCI6MjA3MDIxMjI4MX0.cUbY2rL8Qjqio_D59hp4mAT8oMhhNDjrPRPpfRFwnok';
+
+// Create Supabase client with React Native configuration
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+  global: {
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Prefer': 'return=representation'
+    },
+  },
+});
+
+// Helper function to set user context for RLS
+export const setUserContext = async (userId: number) => {
+  try {
+    const { error } = await supabase.rpc('set_user_context', {
+      user_id: userId
+    });
+
+    if (error) {
+      console.error('Error setting user context:', error);
+      throw error;
+    }
+
+    console.log('User context set successfully for user ID:', userId);
+  } catch (error) {
+    console.error('Failed to set user context:', error);
+    throw error;
+  }
+};
+
+// Helper function to clear user context
+export const clearUserContext = async () => {
+  try {
+    const { error } = await supabase.rpc('clear_user_context');
+
+    if (error) {
+      console.error('Error clearing user context:', error);
+    } else {
+      console.log('User context cleared successfully');
+    }
+  } catch (error) {
+    console.error('Failed to clear user context:', error);
+  }
+};
+
+// Test authentication function
+export const testAuth = async (email: string) => {
+  try {
+    console.log('Testing authentication for:', email);
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, email, role, status')
+      .eq('email', email)
+      .eq('status', 'active')
+      .single();
+
+    console.log('Auth test result:', { data, error });
+    return { data, error };
+  } catch (error) {
+    console.error('Auth test failed:', error);
+    return { data: null, error };
+  }
+};
+
+// TypeScript interfaces for database entities
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string;
+  role: 'super_admin' | 'admin' | 'sales_manager' | 'investor';
+  permissions?: any;
+  assigned_location_id?: number;
+  can_add_sales_managers: boolean;
+  status: 'active' | 'inactive';
+  profile_picture?: string;
+  last_login?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Product {
+  id: number;
+  name: string;
+  product_code: string;
+  category_id?: number;
+  description?: string;
+  purchase_price: number;
+  selling_price: number;
+  per_meter_price?: number;
+  supplier_id?: number;
+  location_id?: number;
+  minimum_threshold: number;
+  current_stock: number;
+  total_purchased: number;
+  total_sold: number;
+  wastage_status: boolean;
+  product_status: 'active' | 'slow' | 'inactive';
+  images?: any;
+  created_by?: number;
+  created_at: string;
+  updated_at: string;
+  last_sold?: string;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Supplier {
+  id: number;
+  name: string;
+  company_name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  payment_terms?: string;
+  status: 'active' | 'inactive';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Location {
+  id: number;
+  name: string;
+  type: 'warehouse' | 'showroom';
+  address: string;
+  city?: string;
+  capacity?: number;
+  manager_name?: string;
+  manager_phone?: string;
+  status: 'active' | 'inactive';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Customer {
+  id: number;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  company_name?: string;
+  delivery_address?: string;
+  customer_type: 'vip' | 'wholesale' | 'regular';
+  total_purchases: number;
+  total_due: number;
+  last_purchase_date?: string;
+  red_list_status: boolean;
+  red_list_since?: string;
+  fixed_coupon?: string;
+  profile_picture?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Sale {
+  id: number;
+  sale_number: string;
+  customer_id?: number;
+  subtotal: number;
+  discount_amount: number;
+  tax_amount: number;
+  total_amount: number;
+  paid_amount: number;
+  due_amount: number;
+  due_date?: string;
+  payment_method?: 'cash' | 'card' | 'bank_transfer' | 'mobile_banking';
+  payment_status: 'paid' | 'partial' | 'pending' | 'overdue';
+  sale_status: 'draft' | 'finalized' | 'cancelled';
+  delivery_person?: string;
+  delivery_photo?: string;
+  location_id?: number;
+  created_by?: number;
+  created_at: string;
+  updated_at: string;
+}

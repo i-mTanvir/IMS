@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase, setUserContext, clearUserContext, testAuth, User } from '../lib/supabase';
 
 // User permissions interface
 interface UserPermissions {
@@ -65,21 +66,27 @@ interface UserPermissions {
 
 // User session interface
 interface UserSession {
-  id: string;
+  id: number;
   email: string;
   name: string;
   role: string;
   permissions: Record<string, any>;
-  assignedLocations?: string[];
+  assignedLocations?: number[];
+  assigned_location_id?: number;
   loginTime: string;
+}
 
+// Login credentials interface
+interface LoginCredentials {
+  email: string;
+  password: string;
 }
 
 // Auth context interface
 interface AuthContextType {
   user: UserSession | null;
   isLoading: boolean;
-  login: (userSession: UserSession) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   hasPermission: (module: string, action?: string, locationId?: string) => boolean;
   isRole: (role: string) => boolean;
@@ -115,25 +122,108 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Optimize auth methods with useCallback
-  const login = useCallback(async (userSession: UserSession) => {
+  const login = useCallback(async (credentials: LoginCredentials): Promise<{ success: boolean; error?: string }> => {
     try {
+      const { email, password } = credentials;
+
+      console.log('Login attempt for:', email);
+
+      // Test database connection first
+      const testResult = await testAuth(email.toLowerCase());
+      console.log('Database test result:', testResult);
+
+      if (testResult.error || !testResult.data) {
+        console.error('Database connection failed:', testResult.error);
+        return { success: false, error: 'Database connection failed. Please check your internet connection.' };
+      }
+
+      const user = testResult.data;
+
+      // Simple password check for demo (use proper hashing in production)
+      let isPasswordValid = false;
+
+      // Check password based on user email
+      if (user.email === 'admin@serranotex.com' && password === 'admin123') {
+        isPasswordValid = true;
+      } else if (user.email !== 'admin@serranotex.com' && password === 'password') {
+        isPasswordValid = true;
+      }
+
+      if (!isPasswordValid) {
+        console.log('Password validation failed for:', user.email);
+        return { success: false, error: 'Invalid email or password' };
+      }
+
+      console.log('Password validation successful for:', user.email);
+
+      // Set user context for RLS
+      await setUserContext(user.id);
+
+      // Update last login
+      await supabase
+        .from('users')
+        .update({ last_login: new Date().toISOString() })
+        .eq('id', user.id);
+
+      // Create user session
+      const userSession: UserSession = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        permissions: user.permissions || {},
+        assignedLocations: user.assigned_location_id ? [user.assigned_location_id] : [],
+        assigned_location_id: user.assigned_location_id,
+        loginTime: new Date().toISOString()
+      };
+
+      // Save session
       await AsyncStorage.setItem('userSession', JSON.stringify(userSession));
       setUser(userSession);
+
+      // Log login activity
+      await supabase
+        .from('activity_logs')
+        .insert({
+          user_id: user.id,
+          action: 'LOGIN',
+          module: 'AUTH',
+          description: 'User logged in successfully',
+          created_at: new Date().toISOString()
+        });
+
+      return { success: true };
     } catch (error) {
-      console.error('Failed to save user session:', error);
-      throw error;
+      console.error('Login error:', error);
+      return { success: false, error: 'Login failed. Please try again.' };
     }
   }, []);
 
   const logout = useCallback(async () => {
     try {
+      // Log logout activity if user exists
+      if (user) {
+        await supabase
+          .from('activity_logs')
+          .insert({
+            user_id: user.id,
+            action: 'LOGOUT',
+            module: 'AUTH',
+            description: 'User logged out',
+            created_at: new Date().toISOString()
+          });
+      }
+
+      // Clear user context
+      await clearUserContext();
+
       // Clear local session
       await AsyncStorage.removeItem('userSession');
       setUser(null);
     } catch (error) {
       console.error('Failed to clear user session:', error);
     }
-  }, []);
+  }, [user]);
 
   const hasPermission = useCallback((module: string, action: string = 'view', locationId?: string): boolean => {
     if (!user || !user.permissions) return false;
@@ -192,27 +282,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const canAccessLocation = useCallback((locationId: string): boolean => {
     if (!user) return false;
-    
+
     // Super admin can access all locations
     if (user.role === 'super_admin') return true;
-    
+
     // Check assigned locations
     if (user.assignedLocations && user.assignedLocations.length > 0) {
-      return user.assignedLocations.includes(locationId);
+      return user.assignedLocations.includes(parseInt(locationId));
     }
-    
+
+    // Check single assigned location
+    if (user.assigned_location_id) {
+      return user.assigned_location_id === parseInt(locationId);
+    }
+
     // If no location restrictions, allow access (for backward compatibility)
     return true;
   }, [user]);
 
   const getAccessibleLocations = useCallback((): string[] => {
     if (!user) return [];
-    
+
     // Super admin can access all locations
     if (user.role === 'super_admin') return [];
-    
-    // Return assigned locations
-    return user.assignedLocations || [];
+
+    // Return assigned locations as strings
+    if (user.assignedLocations && user.assignedLocations.length > 0) {
+      return user.assignedLocations.map(id => id.toString());
+    }
+
+    // Return single assigned location
+    if (user.assigned_location_id) {
+      return [user.assigned_location_id.toString()];
+    }
+
+    return [];
   }, [user]);
 
   // Memoize the context value to prevent unnecessary re-renders
