@@ -63,18 +63,19 @@ export const clearUserContext = async () => {
 };
 
 // Test authentication function
-export const testAuth = async (email: string) => {
+export const testAuth = async (email: string): Promise<{ data: User | null; error: any }> => {
   try {
     console.log('Testing authentication for:', email);
 
     const { data, error } = await supabase
       .from('users')
-      .select('id, name, email, role, status')
+      .select('id, name, email, role, status, permissions, assigned_location_id, can_add_sales_managers, profile_picture, last_login, created_at, updated_at')
       .eq('email', email)
       .eq('status', 'active')
       .single();
 
     console.log('Auth test result:', { data, error });
+    console.log('Full user data:', JSON.stringify(data, null, 2));
     return { data, error };
   } catch (error) {
     console.error('Auth test failed:', error);

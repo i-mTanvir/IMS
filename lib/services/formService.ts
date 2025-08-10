@@ -365,15 +365,20 @@ export class FormService {
   // User Operations
   static async createUser(data: UserFormData, userId: number): Promise<{ success: boolean; data?: User; error?: string }> {
     try {
+      // For demo purposes, we'll use a simple password hash
+      // In production, use proper password hashing like bcrypt
+      const passwordHash = `hashed_${data.password}_${Date.now()}`;
+
       const userData = {
         name: data.name,
         email: data.email,
         phone: data.phone,
         role: data.role,
-        permissions: data.permissions,
+        permissions: data.permissions || {},
         assigned_location_id: data.assigned_location_id,
         can_add_sales_managers: data.role === 'admin' || data.role === 'super_admin',
-        status: 'active' as const
+        status: 'active' as const,
+        password_hash: passwordHash
       };
 
       const { data: user, error } = await supabase

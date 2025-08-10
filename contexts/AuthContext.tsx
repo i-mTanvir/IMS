@@ -90,7 +90,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   hasPermission: (module: string, action?: string, locationId?: string) => boolean;
   isRole: (role: string) => boolean;
-  canAccessLocation: (locationId: string) => boolean;
+  canAccessLocation: (locationId: string | number) => boolean;
   getAccessibleLocations: () => string[];
 }
 
@@ -262,14 +262,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Check location restrictions
     if (locationId && user.role !== 'super_admin') {
+      // Convert locationId to number for comparison
+      const locationIdNum = typeof locationId === 'string' ? parseInt(locationId) : locationId;
+
       // For location-specific permissions, check if user has access to this location
       if (user.assignedLocations && user.assignedLocations.length > 0) {
-        return user.assignedLocations.includes(locationId);
+        return user.assignedLocations.includes(locationIdNum);
       }
-      
+
       // If user has location restrictions in permissions
       if (modulePermissions.locationRestrictions && modulePermissions.locationRestrictions.length > 0) {
-        return modulePermissions.locationRestrictions.includes(locationId);
+        return modulePermissions.locationRestrictions.includes(locationIdNum);
       }
     }
     
@@ -280,20 +283,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user?.role === role;
   }, [user]);
 
-  const canAccessLocation = useCallback((locationId: string): boolean => {
+  const canAccessLocation = useCallback((locationId: string | number): boolean => {
     if (!user) return false;
 
     // Super admin can access all locations
     if (user.role === 'super_admin') return true;
 
+    // Convert locationId to number for comparison
+    const locationIdNum = typeof locationId === 'string' ? parseInt(locationId) : locationId;
+
     // Check assigned locations
     if (user.assignedLocations && user.assignedLocations.length > 0) {
-      return user.assignedLocations.includes(parseInt(locationId));
+      return user.assignedLocations.includes(locationIdNum);
     }
 
     // Check single assigned location
     if (user.assigned_location_id) {
-      return user.assigned_location_id === parseInt(locationId);
+      return user.assigned_location_id === locationIdNum;
     }
 
     // If no location restrictions, allow access (for backward compatibility)
