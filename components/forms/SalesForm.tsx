@@ -33,6 +33,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { FormService, type SaleFormData as FormServiceSaleData, type SaleItemFormData } from '@/lib/services/formService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -424,81 +425,63 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
 
     setIsLoading(true);
     try {
-      // Prepare final sale data
-      const saleData = {
-        // Product and customer info
-        product: {
-          id: selectedProduct!.id,
-          name: selectedProduct!.name,
-          code: selectedProduct!.product_code,
-          category: selectedProduct!.category,
-        },
-        customer: {
-          id: selectedCustomer!.id,
-          name: selectedCustomer!.name,
-          phone: selectedCustomer!.phone,
-          email: selectedCustomer!.email,
-          is_red_listed: selectedCustomer!.is_red_listed,
-        },
-        lot: {
-          id: selectedLot!.id,
-          lot_number: selectedLot!.lot_number,
-          purchase_price: selectedLot!.purchase_price,
-          selling_price: selectedLot!.selling_price,
-        },
-
-        // Quantity and pricing
-        quantity: parseFloat(formData.quantity),
-        unit_price: parseFloat(formData.unitPrice),
+      // Prepare sale data for Supabase
+      const saleData: FormServiceSaleData = {
+        customer_id: selectedCustomer?.id ? parseInt(selectedCustomer.id) : undefined,
         subtotal: totals.subtotal,
         discount_amount: totals.discountAmount,
-        discount_type: formData.discountType,
-        discount_value: formData.discountValue ? parseFloat(formData.discountValue) : 0,
         tax_amount: totals.taxAmount,
-        tax_percentage: formData.taxPercentage ? parseFloat(formData.taxPercentage) : 0,
-        other_charges: totals.otherCharges,
-        other_charges_note: formData.otherChargesNote,
         total_amount: totals.total,
-
-        // Payment details
-        payment_type: formData.paymentType,
-        payment_method: formData.paymentMethod,
-        paid_amount: formData.paymentType === 'full' ? totals.total :
-          formData.paymentType === 'partial' ? parseFloat(formData.paidAmount || '0') : 0,
-        remaining_amount: formData.paymentType === 'full' ? 0 :
-          formData.paymentType === 'partial' ? totals.total - parseFloat(formData.paidAmount || '0') : totals.total,
-        due_date: formData.dueDate,
-
-        // Additional info
-        notes: formData.notes,
-        sale_date: new Date().toISOString(),
-        created_by: 'current_user', // Will be replaced with actual user
+        payment_method: formData.paymentMethod as 'cash' | 'card' | 'bank_transfer' | 'mobile_banking',
+        delivery_person: formData.notes || undefined, // Using notes as delivery person for now
+        location_id: selectedProduct?.location_id ? parseInt(selectedProduct.location_id) : undefined,
+        items: [{
+          product_id: parseInt(selectedProduct!.id),
+          quantity: parseFloat(formData.quantity),
+          unit_price: parseFloat(formData.unitPrice),
+          total_price: totals.subtotal
+        }]
       };
 
-      // Final sale data prepared for submission
+      // Get current user from auth context
+      const { user } = useAuth();
+      if (!user?.id) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
 
-      // Call the submission handler
-      await onSubmit(saleData);
+      // Create sale using FormService
+      const result = await FormService.createSale(saleData, user.id);
 
-      // Show success message with invoice option
-      Alert.alert(
-        '🎉 Sale Completed!',
-        `Sale has been completed successfully!\n\nTotal: ৳${totals.total.toLocaleString()}\nCustomer: ${selectedCustomer!.name}`,
-        [
-          {
-            text: '📄 View Invoice',
-            onPress: () => {
-              // TODO: Implement invoice preview
-              Alert.alert('Invoice', 'Invoice preview will be implemented next!');
+      if (result.success && result.data) {
+        // Call the original submission handler for UI updates
+        await onSubmit({
+          ...saleData,
+          id: result.data.id,
+          sale_number: result.data.sale_number
+        });
+
+        // Show success message with invoice option
+        Alert.alert(
+          '🎉 Sale Completed!',
+          `Sale has been completed successfully!\n\nSale Number: ${result.data.sale_number}\nTotal: ৳${totals.total.toLocaleString()}\nCustomer: ${selectedCustomer!.name}`,
+          [
+            {
+              text: '📄 View Invoice',
+              onPress: () => {
+                // TODO: Implement invoice preview
+                Alert.alert('Invoice', 'Invoice preview will be implemented next!');
+              }
+            },
+            {
+              text: '✅ Done',
+              style: 'default'
             }
-          },
-          {
-            text: '✅ Done',
-            style: 'default'
-          }
-        ]
-      );
-
+          ]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to create sale');
+      }
     } catch (error) {
       console.error('Error completing sale:', error);
       Alert.alert(

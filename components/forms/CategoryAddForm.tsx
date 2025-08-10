@@ -21,6 +21,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { FormService, type CategoryFormData as FormServiceCategoryData } from '@/lib/services/formService';
 // Mock interface for UI demo
 interface CreateCategoryData {
   name: string;
@@ -173,30 +174,42 @@ export default function CategoryAddForm({ visible, onClose, onSubmit, existingCa
 
     setIsLoading(true);
     try {
-      const categoryData: CreateCategoryData = {
+      // Prepare category data for Supabase
+      const categoryData: FormServiceCategoryData = {
         name: formData.categoryName.trim(),
         description: formData.description.trim() || undefined,
-        color_code: formData.color_code,
       };
 
-      // Mock category creation for demo
-      const newCategory = { id: Date.now().toString(), ...categoryData };
+      // Get current user from auth context
+      console.log('Current user in CategoryAddForm:', user);
+      if (!user?.id) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
 
-      Alert.alert(
-        'Success',
-        `Category "${newCategory.name}" has been created successfully!`,
-        [{
-          text: 'OK', onPress: () => {
-            onSubmit({
-              categoryName: newCategory.name,
-              categoryCode: newCategory.id,
-              description: newCategory.description || '',
-              color_code: newCategory.color_code,
-            });
-            handleClose();
-          }
-        }]
-      );
+      console.log('Creating category with user ID:', user.id);
+      // Create category using FormService
+      const result = await FormService.createCategory(categoryData, user.id);
+
+      if (result.success && result.data) {
+        Alert.alert(
+          'Success',
+          `Category "${result.data.name}" has been created successfully!`,
+          [{
+            text: 'OK', onPress: () => {
+              onSubmit({
+                categoryName: result.data.name,
+                categoryCode: result.data.id.toString(),
+                description: result.data.description || '',
+                color_code: formData.color_code,
+              });
+              handleClose();
+            }
+          }]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to create category');
+      }
     } catch (error: any) {
       console.error('Failed to create category:', error);
       Alert.alert('Error', error.message || 'Failed to create category');

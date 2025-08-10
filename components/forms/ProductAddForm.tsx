@@ -30,6 +30,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { FormService, type ProductFormData as FormServiceProductData } from '@/lib/services/formService';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -844,6 +845,29 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     }
   }, [visible, slideAnim, overlayOpacity, scaleAnim]);
 
+  // Load data from Supabase for dropdowns
+  React.useEffect(() => {
+    const loadFormData = async () => {
+      try {
+        const [categories, suppliers, locations] = await Promise.all([
+          FormService.getCategories(),
+          FormService.getSuppliers(),
+          FormService.getLocations()
+        ]);
+
+        // Update the mock data with real data from Supabase
+        // This would typically update state variables for categories, suppliers, locations
+        console.log('Loaded form data:', { categories, suppliers, locations });
+      } catch (error) {
+        console.error('Failed to load form data:', error);
+      }
+    };
+
+    if (visible) {
+      loadFormData();
+    }
+  }, [visible]);
+
   // Reset form when opening
   React.useEffect(() => {
     if (visible) {
@@ -917,36 +941,45 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
 
     setIsLoading(true);
     try {
-      // Transform data for API
-      const productData = {
+      // Prepare product data for Supabase
+      const productData: FormServiceProductData = {
         name: formData.name.trim(),
         product_code: formData.product_code,
-        category_id: parseInt(formData.category_id),
-        description: formData.description?.trim(),
+        category_id: formData.category_id ? parseInt(formData.category_id) : undefined,
+        description: formData.description?.trim() || undefined,
         purchase_price: parseFloat(formData.purchase_price),
         selling_price: parseFloat(formData.selling_price),
-        unit_of_measurement: formData.unit_of_measurement,
-        per_unit_price: parseFloat(formData.per_unit_price) || null,
-        supplier_id: parseInt(formData.supplier_id),
-        location_id: parseInt(formData.location_id),
+        per_meter_price: formData.per_unit_price ? parseFloat(formData.per_unit_price) : undefined,
+        supplier_id: formData.supplier_id ? parseInt(formData.supplier_id) : undefined,
+        location_id: formData.location_id ? parseInt(formData.location_id) : undefined,
         minimum_threshold: parseInt(formData.minimum_threshold) || 100,
         current_stock: parseFloat(formData.current_stock) || 0,
-        product_status: formData.product_status,
-        wastage_status: formData.wastage_status,
-        images: productImages,
+        images: productImages || undefined,
       };
 
-      // Mock API call
-      const newProduct = { id: Date.now(), ...productData };
+      // Get current user from auth context
+      const { user } = useAuth();
+      if (!user?.id) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
 
-      Alert.alert(
-        'Success',
-        `Product "${newProduct.name}" has been ${existingProduct ? 'updated' : 'created'} successfully!`,
-        [{ text: 'OK', onPress: () => { onSubmit(newProduct); onClose(); } }]
-      );
+      // Create product using FormService
+      const result = await FormService.createProduct(productData, user.id);
+
+      if (result.success && result.data) {
+        Alert.alert(
+          'Success',
+          `Product "${result.data.name}" has been ${existingProduct ? 'updated' : 'created'} successfully!`,
+          [{ text: 'OK', onPress: () => { onSubmit(result.data); onClose(); } }]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to save product');
+      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save product';
       Alert.alert('Error', errorMessage);
+      console.error('Product creation error:', error);
     } finally {
       setIsLoading(false);
     }

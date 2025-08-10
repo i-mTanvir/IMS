@@ -32,6 +32,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { FormService, type TransferFormData as FormServiceTransferData } from '@/lib/services/formService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -210,15 +211,48 @@ export default function TransferForm({ visible, onClose, onSubmit, product, loca
     setCurrentStep(prev => prev - 1);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canTransferProduct) {
       Alert.alert('Permission Denied', 'You do not have permission to transfer products.');
       return;
     }
 
-    if (validateStep()) {
-      onSubmit(formData);
-      onClose();
+    if (!validateStep()) {
+      return;
+    }
+
+    try {
+      // Prepare transfer data for Supabase
+      const transferData: FormServiceTransferData = {
+        product_id: parseInt(product?.id || '1'),
+        from_location_id: parseInt(formData.fromLocation),
+        to_location_id: parseInt(formData.toLocation),
+        quantity: parseFloat(formData.quantity),
+        notes: formData.notes || undefined,
+      };
+
+      // Get current user from auth context
+      const { user } = useAuth();
+      if (!user?.id) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
+
+      // Create transfer using FormService
+      const result = await FormService.createTransfer(transferData, user.id);
+
+      if (result.success && result.data) {
+        Alert.alert(
+          'Success',
+          'Transfer request has been created successfully!',
+          [{ text: 'OK', onPress: () => { onSubmit(result.data); onClose(); } }]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to create transfer request');
+      }
+    } catch (error) {
+      console.error('Transfer creation error:', error);
+      Alert.alert('Error', 'Failed to create transfer request');
     }
   };
 

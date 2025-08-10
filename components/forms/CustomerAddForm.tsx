@@ -31,6 +31,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { FormService, type CustomerFormData as FormServiceCustomerData } from '@/lib/services/formService';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -493,14 +494,41 @@ export default function CustomerAddForm({ visible, onClose, onSubmit, existingCu
 
     setIsLoading(true);
     try {
-      Alert.alert(
-        'Success',
-        `Customer "${formData.name}" has been ${existingCustomer ? 'updated' : 'created'} successfully!`,
-        [{ text: 'OK', onPress: () => { onSubmit(formData); onClose(); } }]
-      );
+      // Prepare customer data for Supabase
+      const customerData: FormServiceCustomerData = {
+        name: formData.name.trim(),
+        email: formData.email?.trim() || undefined,
+        phone: formData.phone?.trim() || undefined,
+        address: formData.address?.trim() || undefined,
+        company_name: formData.company_name?.trim() || undefined,
+        delivery_address: formData.delivery_address?.trim() || undefined,
+        customer_type: formData.customer_type as 'vip' | 'wholesale' | 'regular',
+        fixed_coupon: formData.fixed_coupon?.trim() || undefined,
+      };
+
+      // Get current user from auth context
+      const { user } = useAuth();
+      if (!user?.id) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
+
+      // Create customer using FormService
+      const result = await FormService.createCustomer(customerData, user.id);
+
+      if (result.success && result.data) {
+        Alert.alert(
+          'Success',
+          `Customer "${result.data.name}" has been ${existingCustomer ? 'updated' : 'created'} successfully!`,
+          [{ text: 'OK', onPress: () => { onSubmit(result.data); onClose(); } }]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to save customer');
+      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save customer';
       Alert.alert('Error', errorMessage);
+      console.error('Customer creation error:', error);
     } finally {
       setIsLoading(false);
     }

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { FormService, type SupplierFormData as FormServiceSupplierData } from '@/lib/services/formService';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -411,14 +412,39 @@ export default function SupplierAddForm({ visible, onClose, onSubmit, existingSu
 
     setIsLoading(true);
     try {
-      Alert.alert(
-        'Success',
-        `Supplier "${formData.supplierName}" has been created successfully!`,
-        [{ text: 'OK', onPress: () => { onSubmit(formData); onClose(); } }]
-      );
+      // Prepare supplier data for Supabase
+      const supplierData: FormServiceSupplierData = {
+        name: formData.contactPerson?.trim() || formData.supplierName.trim(),
+        company_name: formData.supplierName.trim(),
+        email: formData.email?.trim() || undefined,
+        phone: formData.phone?.trim() || undefined,
+        address: formData.address?.trim() || undefined,
+        payment_terms: formData.paymentTerms?.trim() || undefined,
+      };
+
+      // Get current user from auth context
+      const { user } = useAuth();
+      if (!user?.id) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
+
+      // Create supplier using FormService
+      const result = await FormService.createSupplier(supplierData, user.id);
+
+      if (result.success && result.data) {
+        Alert.alert(
+          'Success',
+          `Supplier "${result.data.company_name}" has been created successfully!`,
+          [{ text: 'OK', onPress: () => { onSubmit(result.data); onClose(); } }]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to create supplier');
+      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create supplier';
       Alert.alert('Error', errorMessage);
+      console.error('Supplier creation error:', error);
     } finally {
       setIsLoading(false);
     }

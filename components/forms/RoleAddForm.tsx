@@ -30,6 +30,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { FormService, type UserFormData as FormServiceUserData } from '@/lib/services/formService';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -345,15 +346,49 @@ export default function RoleAddForm({ visible, onClose, onSubmit, existingRole }
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canManageRoles) {
       Alert.alert('Permission Denied', 'You do not have permission to manage roles.');
       return;
     }
 
-    if (validateForm()) {
-      onSubmit(formData);
-      onClose();
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      // Prepare user data for Supabase
+      const userData: FormServiceUserData = {
+        name: formData.userName.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        role: formData.role.toLowerCase().replace(' ', '_') as 'super_admin' | 'admin' | 'sales_manager' | 'investor',
+        assigned_location_id: formData.locations.length > 0 ? parseInt(formData.locations[0]) : undefined,
+        phone: formData.phone?.trim() || undefined,
+      };
+
+      // Get current user from auth context
+      const { user } = useAuth();
+      if (!user?.id) {
+        Alert.alert('Error', 'User not authenticated');
+        return;
+      }
+
+      // Create user using FormService
+      const result = await FormService.createUser(userData, user.id);
+
+      if (result.success && result.data) {
+        Alert.alert(
+          'Success',
+          `User "${result.data.name}" has been created successfully!`,
+          [{ text: 'OK', onPress: () => { onSubmit(result.data); onClose(); } }]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to create user');
+      }
+    } catch (error) {
+      console.error('User creation error:', error);
+      Alert.alert('Error', 'Failed to create user');
     }
   };
 
