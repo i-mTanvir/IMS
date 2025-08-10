@@ -113,6 +113,8 @@ export interface Product {
   location_id?: number;
   minimum_threshold: number;
   current_stock: number;
+  quantity?: number;
+  current_lot_number?: number;
   total_purchased: number;
   total_sold: number;
   wastage_status: boolean;
@@ -122,6 +124,24 @@ export interface Product {
   created_at: string;
   updated_at: string;
   last_sold?: string;
+}
+
+export interface ProductLot {
+  id: number;
+  product_id: number;
+  lot_number: number;
+  quantity: number;
+  purchase_price: number;
+  selling_price: number;
+  supplier_id?: number;
+  location_id?: number;
+  received_date?: string;
+  expiry_date?: string;
+  status?: string;
+  notes?: string;
+  created_by?: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Category {

@@ -12,6 +12,7 @@ export interface ProductFormData {
   description?: string;
   purchase_price: number;
   selling_price: number;
+  quantity?: number;
   per_meter_price?: number;
   supplier_id?: number;
   location_id?: number;
@@ -136,8 +137,10 @@ export class FormService {
       const productData = {
         ...data,
         created_by: userId,
-        current_stock: data.current_stock || 0,
-        total_purchased: 0,
+        current_stock: data.quantity || 0,
+        quantity: data.quantity || 0,
+        current_lot_number: 1,
+        total_purchased: data.quantity || 0,
         total_sold: 0,
         wastage_status: false,
         product_status: 'active' as const
@@ -154,8 +157,32 @@ export class FormService {
         return { success: false, error: this.getErrorMessage(error) };
       }
 
+      // Create initial product lot entry
+      if (data.quantity && data.quantity > 0) {
+        const lotData = {
+          product_id: product.id,
+          lot_number: 1,
+          quantity: data.quantity,
+          purchase_price: data.purchase_price,
+          selling_price: data.selling_price,
+          supplier_id: data.supplier_id,
+          location_id: data.location_id,
+          status: 'active',
+          created_by: userId
+        };
+
+        const { error: lotError } = await supabase
+          .from('products_lot')
+          .insert(lotData);
+
+        if (lotError) {
+          console.warn('Product lot creation failed:', lotError);
+          // Don't fail the entire operation, just log the warning
+        }
+      }
+
       // Log activity (non-blocking)
-      this.logActivity(userId, 'CREATE', 'PRODUCT', `Created product: ${product.name}`).catch(err => {
+      this.logActivity(userId, 'CREATE', 'PRODUCT', `Created product: ${product.name} with lot #1`).catch(err => {
         console.warn('Activity logging failed, but operation succeeded:', err);
       });
 
@@ -488,6 +515,30 @@ export class FormService {
       return data || [];
     } catch (error) {
       console.error('Error fetching locations:', error);
+      return [];
+    }
+  }
+
+  static async getExistingProducts(): Promise<Product[]> {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          *,
+          categories(name),
+          suppliers(name, company_name)
+        `)
+        .eq('product_status', 'active')
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching existing products:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching existing products:', error);
       return [];
     }
   }

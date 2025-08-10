@@ -31,7 +31,7 @@ import {
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { FormService, type ProductFormData as FormServiceProductData } from '@/lib/services/formService';
-import type { Category, Supplier, Location } from '@/lib/supabase';
+import type { Category, Supplier, Location, Product } from '@/lib/supabase';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -70,6 +70,7 @@ interface ProductFormData {
   description: string;
   purchase_price: string;
   selling_price: string;
+  quantity: string;
   unit_of_measurement: string;
   per_unit_price: string;
   supplier_id: string;
@@ -81,17 +82,7 @@ interface ProductFormData {
   wastage_status: boolean;
 }
 
-interface ExistingProduct {
-  id: string;
-  name: string;
-  product_code: string;
-  category_id: string;
-  category_name: string;
-  description: string;
-  supplier_id: string;
-  supplier_name: string;
-  last_lot_number: number;
-}
+// Using Product interface from supabase.ts
 
 interface ProductAddFormProps {
   visible: boolean;
@@ -115,7 +106,7 @@ const formSteps: FormStep[] = [
   {
     title: 'Pricing',
     icon: DollarSign,
-    fields: ['purchase_price', 'selling_price', 'unit_of_measurement', 'per_unit_price']
+    fields: ['purchase_price', 'selling_price', 'quantity', 'unit_of_measurement', 'per_unit_price']
   },
   {
     title: 'Stock & Location',
@@ -131,97 +122,7 @@ const formSteps: FormStep[] = [
 
 // Data will be loaded from database
 
-// Mock existing products for restocking
-const mockExistingProducts: ExistingProduct[] = [
-  {
-    id: '1',
-    name: 'Premium Velvet Fabric',
-    product_code: 'PVF-001',
-    category_id: '2',
-    category_name: 'Textiles',
-    description: 'High-quality velvet fabric for premium furniture',
-    supplier_id: '1',
-    supplier_name: 'ABC Suppliers Ltd.',
-    last_lot_number: 3
-  },
-  {
-    id: '2',
-    name: 'Cotton Blend Fabric',
-    product_code: 'CBF-002',
-    category_id: '2',
-    category_name: 'Textiles',
-    description: 'Durable cotton blend fabric for everyday use',
-    supplier_id: '2',
-    supplier_name: 'XYZ Trading Co.',
-    last_lot_number: 1
-  },
-  {
-    id: '3',
-    name: 'Leather Upholstery',
-    product_code: 'LU-003',
-    category_id: '2',
-    category_name: 'Textiles',
-    description: 'Premium leather for luxury furniture upholstery',
-    supplier_id: '3',
-    supplier_name: 'Global Imports',
-    last_lot_number: 2
-  },
-  {
-    id: '4',
-    name: 'Silk Fabric Premium',
-    product_code: 'SF-004',
-    category_id: '2',
-    category_name: 'Textiles',
-    description: 'Luxurious silk fabric for high-end applications',
-    supplier_id: '1',
-    supplier_name: 'ABC Suppliers Ltd.',
-    last_lot_number: 5
-  },
-  {
-    id: '5',
-    name: 'Polyester Blend',
-    product_code: 'PB-005',
-    category_id: '2',
-    category_name: 'Textiles',
-    description: 'Durable polyester blend for commercial use',
-    supplier_id: '2',
-    supplier_name: 'XYZ Trading Co.',
-    last_lot_number: 2
-  },
-  {
-    id: '6',
-    name: 'Wool Fabric',
-    product_code: 'WF-006',
-    category_id: '2',
-    category_name: 'Textiles',
-    description: 'Natural wool fabric for winter clothing',
-    supplier_id: '3',
-    supplier_name: 'Global Imports',
-    last_lot_number: 1
-  },
-  {
-    id: '7',
-    name: 'Linen Fabric',
-    product_code: 'LF-007',
-    category_id: '2',
-    category_name: 'Textiles',
-    description: 'Breathable linen fabric for summer wear',
-    supplier_id: '1',
-    supplier_name: 'ABC Suppliers Ltd.',
-    last_lot_number: 4
-  },
-  {
-    id: '8',
-    name: 'Denim Fabric',
-    product_code: 'DF-008',
-    category_id: '2',
-    category_name: 'Textiles',
-    description: 'Heavy-duty denim fabric for jeans and jackets',
-    supplier_id: '2',
-    supplier_name: 'XYZ Trading Co.',
-    last_lot_number: 3
-  }
-];
+// Existing products will be loaded from database
 
 const productStatuses: ProductStatus[] = [
   { id: 'active', name: 'Active', description: 'Available for sale' },
@@ -600,12 +501,13 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
   const [isLoading, setIsLoading] = useState(false);
   const [productImages, setProductImages] = useState<string[]>([]);
   const [productType, setProductType] = useState<'new' | 'existing'>('new');
-  const [selectedExistingProduct, setSelectedExistingProduct] = useState<ExistingProduct | null>(null);
+  const [selectedExistingProduct, setSelectedExistingProduct] = useState<Product | null>(null);
 
   // Real data from database
   const [categories, setCategories] = useState<Category[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [existingProducts, setExistingProducts] = useState<Product[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   // Field configurations with real data
@@ -644,6 +546,13 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
       placeholder: '0.00',
       keyboardType: 'numeric'
     },
+    quantity: {
+      label: 'Quantity',
+      required: true,
+      placeholder: '0',
+      keyboardType: 'numeric',
+      info: 'Total quantity for this lot'
+    },
     unit_of_measurement: {
       label: 'Unit of Measurement',
       required: true,
@@ -655,7 +564,7 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
       label: 'Per Unit Price',
       placeholder: 'Auto-calculated',
       keyboardType: 'numeric',
-      info: 'Will be calculated based on selling price and unit'
+      info: 'Will be calculated as Selling Price ÷ Quantity'
     },
     supplier_id: {
       label: 'Supplier',
@@ -709,13 +618,14 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     description: '',
     purchase_price: '',
     selling_price: '',
+    quantity: '0',
     unit_of_measurement: 'meter',
     per_unit_price: '',
     supplier_id: '',
     location_id: '',
     minimum_threshold: '100',
     current_stock: '0',
-    lot_number: '0',
+    lot_number: '1',
     product_status: 'active',
     wastage_status: false,
   });
@@ -737,61 +647,41 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     }
   }, [formData.name, existingProduct]);
 
-  // Auto-calculate per unit price based on selling price and unit
+  // Auto-calculate per unit price based on selling price and quantity
   React.useEffect(() => {
-    if (formData.selling_price && parseFloat(formData.selling_price) > 0) {
-      // Different calculation factors based on unit type
-      let calculationFactor = 0.9; // Default factor
-      
-      switch (formData.unit_of_measurement) {
-        case 'meter':
-        case 'yard':
-          calculationFactor = 0.9; // 10% discount for length units
-          break;
-        case 'kilogram':
-        case 'gram':
-          calculationFactor = 0.95; // 5% discount for weight units
-          break;
-        case 'piece':
-        case 'pair':
-          calculationFactor = 0.85; // 15% discount for individual items
-          break;
-        case 'dozen':
-          calculationFactor = 0.8; // 20% discount for bulk (dozen)
-          break;
-        case 'roll':
-        case 'bundle':
-          calculationFactor = 0.88; // 12% discount for bundled items
-          break;
-        default:
-          calculationFactor = 0.9;
+    if (formData.selling_price && formData.quantity) {
+      const sellingPrice = parseFloat(formData.selling_price);
+      const quantity = parseFloat(formData.quantity);
+
+      if (sellingPrice > 0 && quantity > 0) {
+        const perUnitPrice = (sellingPrice / quantity).toFixed(2);
+        setFormData(prev => ({ ...prev, per_unit_price: perUnitPrice }));
       }
-      
-      const perUnitPrice = (parseFloat(formData.selling_price) * calculationFactor).toFixed(2);
-      setFormData(prev => ({ ...prev, per_unit_price: perUnitPrice }));
     }
-  }, [formData.selling_price, formData.unit_of_measurement]);
+  }, [formData.selling_price, formData.quantity]);
 
   // Handle existing product selection
-  const handleExistingProductSelect = (product: ExistingProduct) => {
+  const handleExistingProductSelect = (product: Product) => {
     setSelectedExistingProduct(product);
-    const nextLotNumber = (product.last_lot_number + 1).toString();
-    
+    const nextLotNumber = ((product.current_lot_number || 0) + 1).toString();
+
     setFormData(prev => ({
       ...prev,
       name: product.name,
       product_code: product.product_code,
-      category_id: product.category_id,
-      description: product.description,
-      supplier_id: product.supplier_id,
+      category_id: product.category_id?.toString() || '',
+      description: product.description || '',
+      supplier_id: product.supplier_id?.toString() || '',
+      location_id: product.location_id?.toString() || '',
       lot_number: nextLotNumber,
-      // Reset other fields for new stock entry
+      // Reset pricing fields for new stock entry
       purchase_price: '',
       selling_price: '',
+      quantity: '0',
       unit_of_measurement: 'meter',
       per_unit_price: '',
-      location_id: '',
-      current_stock: '0',
+      // Show current stock for reference
+      current_stock: product.current_stock?.toString() || '0',
     }));
   };
 
@@ -825,20 +715,23 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     const loadFormData = async () => {
       try {
         setIsLoadingData(true);
-        const [categoriesData, suppliersData, locationsData] = await Promise.all([
+        const [categoriesData, suppliersData, locationsData, existingProductsData] = await Promise.all([
           FormService.getCategories(),
           FormService.getSuppliers(),
-          FormService.getLocations()
+          FormService.getLocations(),
+          FormService.getExistingProducts()
         ]);
 
         setCategories(categoriesData);
         setSuppliers(suppliersData);
         setLocations(locationsData);
+        setExistingProducts(existingProductsData);
 
         console.log('Loaded form data:', {
           categories: categoriesData.length,
           suppliers: suppliersData.length,
-          locations: locationsData.length
+          locations: locationsData.length,
+          existingProducts: existingProductsData.length
         });
       } catch (error) {
         console.error('Failed to load form data:', error);
@@ -871,13 +764,14 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
           description: '',
           purchase_price: '',
           selling_price: '',
+          quantity: '0',
           unit_of_measurement: 'meter',
           per_unit_price: '',
           supplier_id: '',
           location_id: '',
           minimum_threshold: '100',
           current_stock: '0',
-          lot_number: '0',
+          lot_number: '1',
           product_status: 'active',
           wastage_status: false,
         });
@@ -1070,13 +964,13 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
                   Select Existing Product *
                 </Text>
                 <DropdownField
-                  value={selectedExistingProduct?.id || ''}
+                  value={selectedExistingProduct?.id?.toString() || ''}
                   onChange={(value) => {
-                    const product = mockExistingProducts.find(p => p.id === value);
+                    const product = existingProducts.find(p => p.id.toString() === value);
                     if (product) handleExistingProductSelect(product);
                   }}
-                  options={mockExistingProducts}
-                  placeholder="Search and select a product to restock..."
+                  options={existingProducts.map(p => ({ ...p, id: p.id.toString() }))}
+                  placeholder={isLoadingData ? "Loading products..." : "Search and select a product to restock..."}
                   theme={theme}
                   displayKey="name"
                   searchable={true}
@@ -1087,13 +981,13 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
                       Selected: {selectedExistingProduct.name}
                     </Text>
                     <Text style={[styles.selectedProductDetails, { color: theme.colors.text.secondary }]}>
-                      Code: {selectedExistingProduct.product_code} • Category: {selectedExistingProduct.category_name}
+                      Code: {selectedExistingProduct.product_code} • Current Stock: {selectedExistingProduct.current_stock || 0}
                     </Text>
                     <Text style={[styles.selectedProductDetails, { color: theme.colors.text.secondary }]}>
-                      Supplier: {selectedExistingProduct.supplier_name}
+                      Category ID: {selectedExistingProduct.category_id || 'N/A'} • Supplier ID: {selectedExistingProduct.supplier_id || 'N/A'}
                     </Text>
                     <Text style={[styles.selectedProductDetails, { color: theme.colors.text.secondary }]}>
-                      Next Lot: {selectedExistingProduct.last_lot_number + 1}
+                      Next Lot: {(selectedExistingProduct.current_lot_number || 0) + 1}
                     </Text>
                   </View>
                 )}
