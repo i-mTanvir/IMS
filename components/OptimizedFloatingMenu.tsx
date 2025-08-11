@@ -1,12 +1,12 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity, Animated, StyleSheet, Dimensions, Text, TouchableWithoutFeedback } from 'react-native';
-import { Plus, Package, Users, Tag, Truck, UserPlus, LucideIcon } from 'lucide-react-native';
+import { Plus, Package, Users, Tag, Truck, ShoppingCart, LucideIcon } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import ProductAddForm from './forms/ProductAddForm';
 import CustomerAddForm from './forms/CustomerAddForm';
 import CategoryAddForm from './forms/CategoryAddForm';
 import SupplierAddForm from './forms/SupplierAddForm';
-import RoleAddForm from './forms/RoleAddForm';
+import SalesForm from './forms/SalesForm';
 
 // Removed unused screenWidth for better performance
 
@@ -28,7 +28,7 @@ const OptimizedFloatingMenu = React.memo(function OptimizedFloatingMenu({ onMenu
     const [showCustomerForm, setShowCustomerForm] = useState(false);
     const [showCategoryForm, setShowCategoryForm] = useState(false);
     const [showSupplierForm, setShowSupplierForm] = useState(false);
-    const [showRoleForm, setShowRoleForm] = useState(false);
+    const [showSalesForm, setShowSalesForm] = useState(false);
 
     // Pre-computed menu actions
     const menuActions: MenuAction[] = useMemo(() => [
@@ -36,7 +36,7 @@ const OptimizedFloatingMenu = React.memo(function OptimizedFloatingMenu({ onMenu
         { id: 'customer', label: 'Customer', icon: Users, color: '#16a34a' },
         { id: 'category', label: 'Category', icon: Tag, color: '#ea580c' },
         { id: 'suppliers', label: 'Suppliers', icon: Truck, color: '#dc2626' },
-        { id: 'role', label: 'New Role', icon: UserPlus, color: '#7c3aed' }
+        { id: 'sales', label: 'Sales', icon: ShoppingCart, color: '#059669' }
     ], []);
 
     // Optimized animation values - simpler approach
@@ -108,8 +108,8 @@ const OptimizedFloatingMenu = React.memo(function OptimizedFloatingMenu({ onMenu
             case 'suppliers':
                 setShowSupplierForm(true);
                 break;
-            case 'role':
-                setShowRoleForm(true);
+            case 'sales':
+                setShowSalesForm(true);
                 break;
         }
 
@@ -154,9 +154,14 @@ const OptimizedFloatingMenu = React.memo(function OptimizedFloatingMenu({ onMenu
         setShowSupplierForm(false);
     }, []);
 
-    const handleRoleSubmit = useCallback((data: any) => {
-        console.log('Role form submitted:', data);
-        setShowRoleForm(false);
+    const handleSalesSubmit = useCallback((data: any) => {
+        console.log('Sales form submitted:', data);
+        setShowSalesForm(false);
+    }, []);
+
+    const handleSalesDraft = useCallback((data: any) => {
+        console.log('Sales draft saved:', data);
+        // Keep form open for draft saves
     }, []);
 
     // Memoized styles
@@ -371,10 +376,11 @@ const OptimizedFloatingMenu = React.memo(function OptimizedFloatingMenu({ onMenu
                 onSubmit={handleSupplierSubmit}
             />
 
-            <RoleAddForm
-                visible={showRoleForm}
-                onClose={() => setShowRoleForm(false)}
-                onSubmit={handleRoleSubmit}
+            <SalesForm
+                visible={showSalesForm}
+                onClose={() => setShowSalesForm(false)}
+                onSubmit={handleSalesSubmit}
+                onSaveDraft={handleSalesDraft}
             />
         </>
     );

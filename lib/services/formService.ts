@@ -12,7 +12,6 @@ export interface ProductFormData {
   description?: string;
   purchase_price: number;
   selling_price: number;
-  quantity?: number;
   per_meter_price?: number;
   supplier_id?: number;
   location_id?: number;
@@ -137,10 +136,8 @@ export class FormService {
       const productData = {
         ...data,
         created_by: userId,
-        current_stock: data.quantity || 0,
-        quantity: data.quantity || 0,
         current_lot_number: 1,
-        total_purchased: data.quantity || 0,
+        total_purchased: data.current_stock || 0,
         total_sold: 0,
         wastage_status: false,
         product_status: 'active' as const
@@ -158,11 +155,11 @@ export class FormService {
       }
 
       // Create initial product lot entry
-      if (data.quantity && data.quantity > 0) {
+      if (data.current_stock && data.current_stock > 0) {
         const lotData = {
           product_id: product.id,
           lot_number: 1,
-          quantity: data.quantity,
+          quantity: data.current_stock,
           purchase_price: data.purchase_price,
           selling_price: data.selling_price,
           supplier_id: data.supplier_id,
@@ -190,6 +187,89 @@ export class FormService {
     } catch (error) {
       console.error('Product creation failed:', error);
       return { success: false, error: 'Failed to create product' };
+    }
+  }
+
+  static async addStockToExistingProduct(productId: number, data: ProductFormData, userId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      // Validation
+      const stockError = this.validateNumber(data.current_stock?.toString() || '0', 'Stock quantity', 0);
+      if (stockError) return { success: false, error: stockError };
+
+      const priceError = this.validateNumber(data.purchase_price.toString(), 'Purchase price', 0);
+      if (priceError) return { success: false, error: priceError };
+
+      const sellingPriceError = this.validateNumber(data.selling_price.toString(), 'Selling price', 0);
+      if (sellingPriceError) return { success: false, error: sellingPriceError };
+
+      if (data.selling_price <= data.purchase_price) {
+        return { success: false, error: 'Selling price must be greater than purchase price' };
+      }
+
+      // Get current product data
+      const { data: currentProduct, error: fetchError } = await supabase
+        .from('products')
+        .select('current_stock, current_lot_number')
+        .eq('id', productId)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching current product:', fetchError);
+        return { success: false, error: 'Failed to fetch current product data' };
+      }
+
+      const newLotNumber = (currentProduct.current_lot_number || 0) + 1;
+      const newTotalStock = (currentProduct.current_stock || 0) + (data.current_stock || 0);
+
+      // Create new lot entry
+      const lotData = {
+        product_id: productId,
+        lot_number: newLotNumber,
+        quantity: data.current_stock,
+        purchase_price: data.purchase_price,
+        selling_price: data.selling_price,
+        supplier_id: data.supplier_id,
+        location_id: data.location_id,
+        status: 'active',
+        created_by: userId
+      };
+
+      const { data: newLot, error: lotError } = await supabase
+        .from('products_lot')
+        .insert(lotData)
+        .select()
+        .single();
+
+      if (lotError) {
+        console.error('Lot creation error:', lotError);
+        return { success: false, error: this.getErrorMessage(lotError) };
+      }
+
+      // Update product with new stock and lot number
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({
+          current_stock: newTotalStock,
+          current_lot_number: newLotNumber,
+          total_purchased: (currentProduct.total_purchased || 0) + (data.current_stock || 0),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', productId);
+
+      if (updateError) {
+        console.error('Product update error:', updateError);
+        return { success: false, error: this.getErrorMessage(updateError) };
+      }
+
+      // Log activity (non-blocking)
+      this.logActivity(userId, 'UPDATE', 'PRODUCT', `Added stock to product ID ${productId}, Lot #${newLotNumber}`).catch(err => {
+        console.warn('Activity logging failed, but operation succeeded:', err);
+      });
+
+      return { success: true, data: newLot };
+    } catch (error) {
+      console.error('Add stock error:', error);
+      return { success: false, error: 'Failed to add stock to product' };
     }
   }
 
@@ -562,6 +642,28 @@ export class FormService {
     }
   }
 
+  static async getProductLots(productId: number): Promise<ProductLot[]> {
+    try {
+      const { data, error } = await supabase
+        .from('products_lot')
+        .select('*')
+        .eq('product_id', productId)
+        .eq('status', 'active')
+        .gt('quantity', 0) // Only lots with available quantity
+        .order('lot_number');
+
+      if (error) {
+        console.error('Error fetching product lots:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching product lots:', error);
+      return [];
+    }
+  }
+
   static async getProducts(): Promise<Product[]> {
     try {
       const { data, error } = await supabase
@@ -651,5 +753,121 @@ export class FormService {
     }
 
     return errors;
+  }
+
+  static async createSale(saleData: any, userId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      // Validation
+      if (!saleData.productId || !saleData.lotId || !saleData.customerId) {
+        return { success: false, error: 'Product, lot, and customer are required' };
+      }
+
+      const quantity = parseFloat(saleData.quantity);
+      if (!quantity || quantity <= 0) {
+        return { success: false, error: 'Valid quantity is required' };
+      }
+
+      // Check if lot has enough quantity
+      const { data: lot, error: lotError } = await supabase
+        .from('products_lot')
+        .select('quantity, selling_price')
+        .eq('id', saleData.lotId)
+        .single();
+
+      if (lotError || !lot) {
+        return { success: false, error: 'Lot not found' };
+      }
+
+      if (lot.quantity < quantity) {
+        return { success: false, error: `Insufficient stock. Available: ${lot.quantity}` };
+      }
+
+      // Calculate totals
+      const unitPrice = parseFloat(saleData.unitPrice) || lot.selling_price;
+      const subtotal = quantity * unitPrice;
+      const discountAmount = parseFloat(saleData.discountAmount) || 0;
+      const total = subtotal - discountAmount;
+
+      // Create sale record
+      const saleRecord = {
+        customer_id: parseInt(saleData.customerId),
+        product_id: parseInt(saleData.productId),
+        lot_id: parseInt(saleData.lotId),
+        quantity: quantity,
+        unit_price: unitPrice,
+        subtotal: subtotal,
+        discount_type: saleData.discountType || 'none',
+        discount_amount: discountAmount,
+        total_amount: total,
+        payment_method: saleData.paymentMethod || 'cash',
+        payment_status: saleData.paymentStatus || 'paid',
+        sale_date: new Date().toISOString(),
+        notes: saleData.notes || '',
+        created_by: userId,
+        status: 'completed'
+      };
+
+      const { data: sale, error: saleError } = await supabase
+        .from('sales')
+        .insert(saleRecord)
+        .select()
+        .single();
+
+      if (saleError) {
+        console.error('Sale creation error:', saleError);
+        return { success: false, error: this.getErrorMessage(saleError) };
+      }
+
+      // Update lot quantity
+      const newLotQuantity = lot.quantity - quantity;
+      const { error: lotUpdateError } = await supabase
+        .from('products_lot')
+        .update({
+          quantity: newLotQuantity,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', saleData.lotId);
+
+      if (lotUpdateError) {
+        console.warn('Lot quantity update failed:', lotUpdateError);
+        // Don't fail the entire operation, just log the warning
+      }
+
+      // Update product current stock
+      const { data: product, error: productFetchError } = await supabase
+        .from('products')
+        .select('current_stock, total_sold')
+        .eq('id', saleData.productId)
+        .single();
+
+      if (!productFetchError && product) {
+        const newCurrentStock = (product.current_stock || 0) - quantity;
+        const newTotalSold = (product.total_sold || 0) + quantity;
+
+        const { error: productUpdateError } = await supabase
+          .from('products')
+          .update({
+            current_stock: Math.max(0, newCurrentStock),
+            total_sold: newTotalSold,
+            last_sold: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', saleData.productId);
+
+        if (productUpdateError) {
+          console.warn('Product stock update failed:', productUpdateError);
+        }
+      }
+
+      // Log activity (non-blocking)
+      this.logActivity(userId, 'CREATE', 'SALE', `Created sale for ${quantity} units`).catch(err => {
+        console.warn('Activity logging failed, but operation succeeded:', err);
+      });
+
+      return { success: true, data: sale };
+    } catch (error) {
+      console.error('Sale creation error:', error);
+      return { success: false, error: 'Failed to create sale' };
+    }
   }
 }

@@ -70,13 +70,12 @@ interface ProductFormData {
   description: string;
   purchase_price: string;
   selling_price: string;
-  quantity: string;
+  current_stock: string;
   unit_of_measurement: string;
   per_unit_price: string;
   supplier_id: string;
   location_id: string;
   minimum_threshold: string;
-  current_stock: string;
   lot_number: string;
   product_status: string;
   wastage_status: boolean;
@@ -106,12 +105,12 @@ const formSteps: FormStep[] = [
   {
     title: 'Pricing',
     icon: DollarSign,
-    fields: ['purchase_price', 'selling_price', 'quantity', 'unit_of_measurement', 'per_unit_price']
+    fields: ['purchase_price', 'selling_price', 'current_stock', 'unit_of_measurement', 'per_unit_price']
   },
   {
     title: 'Stock & Location',
     icon: Warehouse,
-    fields: ['supplier_id', 'location_id', 'lot_number', 'minimum_threshold', 'current_stock']
+    fields: ['supplier_id', 'location_id', 'lot_number', 'minimum_threshold']
   },
   {
     title: 'Images & Status',
@@ -546,12 +545,12 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
       placeholder: '0.00',
       keyboardType: 'numeric'
     },
-    quantity: {
-      label: 'Quantity',
+    current_stock: {
+      label: 'Stock',
       required: true,
       placeholder: '0',
       keyboardType: 'numeric',
-      info: 'Total quantity for this lot'
+      info: 'Total stock quantity for this lot'
     },
     unit_of_measurement: {
       label: 'Unit of Measurement',
@@ -586,11 +585,6 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
       keyboardType: 'numeric',
       info: 'Alert when stock goes below this amount'
     },
-    current_stock: {
-      label: 'Current Stock',
-      placeholder: '0',
-      keyboardType: 'numeric'
-    },
     lot_number: {
       label: 'Lot Number',
       placeholder: 'Auto-generated',
@@ -618,13 +612,12 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     description: '',
     purchase_price: '',
     selling_price: '',
-    quantity: '0',
+    current_stock: '0',
     unit_of_measurement: 'meter',
     per_unit_price: '',
     supplier_id: '',
     location_id: '',
     minimum_threshold: '100',
-    current_stock: '0',
     lot_number: '1',
     product_status: 'active',
     wastage_status: false,
@@ -647,18 +640,18 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
     }
   }, [formData.name, existingProduct]);
 
-  // Auto-calculate per unit price based on selling price and quantity
+  // Auto-calculate per unit price based on selling price and stock
   React.useEffect(() => {
-    if (formData.selling_price && formData.quantity) {
+    if (formData.selling_price && formData.current_stock) {
       const sellingPrice = parseFloat(formData.selling_price);
-      const quantity = parseFloat(formData.quantity);
+      const stock = parseFloat(formData.current_stock);
 
-      if (sellingPrice > 0 && quantity > 0) {
-        const perUnitPrice = (sellingPrice / quantity).toFixed(2);
+      if (sellingPrice > 0 && stock > 0) {
+        const perUnitPrice = (sellingPrice / stock).toFixed(2);
         setFormData(prev => ({ ...prev, per_unit_price: perUnitPrice }));
       }
     }
-  }, [formData.selling_price, formData.quantity]);
+  }, [formData.selling_price, formData.current_stock]);
 
   // Handle existing product selection
   const handleExistingProductSelect = (product: Product) => {
@@ -764,13 +757,12 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
           description: '',
           purchase_price: '',
           selling_price: '',
-          quantity: '0',
+          current_stock: '0',
           unit_of_measurement: 'meter',
           per_unit_price: '',
           supplier_id: '',
           location_id: '',
           minimum_threshold: '100',
-          current_stock: '0',
           lot_number: '1',
           product_status: 'active',
           wastage_status: false,
@@ -841,13 +833,22 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
         return;
       }
 
-      // Create product using FormService
-      const result = await FormService.createProduct(productData, user.id);
+      let result;
+
+      if (productType === 'existing' && selectedExistingProduct) {
+        // Add stock to existing product (create new lot)
+        result = await FormService.addStockToExistingProduct(selectedExistingProduct.id, productData, user.id);
+      } else {
+        // Create new product
+        result = await FormService.createProduct(productData, user.id);
+      }
 
       if (result.success && result.data) {
+        const actionText = productType === 'existing' ? 'restocked' : 'created';
+        const productName = productType === 'existing' ? selectedExistingProduct?.name : result.data.name;
         Alert.alert(
           'Success',
-          `Product "${result.data.name}" has been ${existingProduct ? 'updated' : 'created'} successfully!`,
+          `Product "${productName}" has been ${actionText} successfully!`,
           [{ text: 'OK', onPress: () => { onSubmit(result.data); onClose(); } }]
         );
       } else {

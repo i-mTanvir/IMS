@@ -34,40 +34,11 @@ import {
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { FormService, type SaleFormData as FormServiceSaleData, type SaleItemFormData } from '@/lib/services/formService';
+import type { Product, Customer, ProductLot } from '@/lib/supabase';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-// Types for the sales form
-interface Product {
-  id: string;
-  name: string;
-  product_code: string;
-  category: string;
-  current_stock: number;
-  selling_price: number;
-  unit_of_measure: string;
-  lots: ProductLot[];
-}
-
-interface ProductLot {
-  id: string;
-  lot_number: string;
-  quantity: number;
-  purchase_price: number;
-  selling_price: number;
-  purchase_date: string;
-}
-
-interface Customer {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  address: string;
-  customer_type: 'VIP' | 'Regular' | 'Wholesale';
-  is_red_listed: boolean;
-  outstanding_amount: number;
-}
+// Types for the sales form (using imported types from supabase.ts)
 
 interface SalesFormData {
   productId: string;
@@ -123,6 +94,7 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
   // Data states
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [lots, setLots] = useState<ProductLot[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedLot, setSelectedLot] = useState<ProductLot | null>(null);
@@ -214,9 +186,19 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
 
   const loadData = async () => {
     try {
-      // Mock data loading - replace with actual API calls
-      setProducts(mockProducts);
-      setCustomers(mockCustomers);
+      // Load real data from database
+      const [productsData, customersData] = await Promise.all([
+        FormService.getExistingProducts(),
+        FormService.getCustomers()
+      ]);
+
+      setProducts(productsData);
+      setCustomers(customersData);
+
+      console.log('Loaded sales data:', {
+        products: productsData.length,
+        customers: customersData.length
+      });
     } catch (error) {
       console.error('Error loading data:', error);
       Alert.alert('Error', 'Failed to load data. Please try again.');
@@ -345,23 +327,33 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
   ]);
 
   // Handle product selection
-  const handleProductSelect = useCallback((product: Product) => {
+  const handleProductSelect = useCallback(async (product: Product) => {
     setSelectedProduct(product);
     setFormData(prev => ({
       ...prev,
-      productId: product.id,
+      productId: product.id.toString(),
       unitPrice: product.selling_price.toString(),
     }));
     setSelectedLot(null);
     setFormData(prev => ({ ...prev, lotId: '' }));
     setShowDropdowns(prev => ({ ...prev, product: false }));
     setSearchTexts(prev => ({ ...prev, product: '' }));
+
+    // Load lots for the selected product
+    try {
+      const productLots = await FormService.getProductLots(product.id);
+      setLots(productLots);
+      console.log(`Loaded ${productLots.length} lots for product ${product.name}`);
+    } catch (error) {
+      console.error('Error loading product lots:', error);
+      setLots([]);
+    }
   }, []);
 
   // Handle customer selection
   const handleCustomerSelect = useCallback((customer: Customer) => {
     setSelectedCustomer(customer);
-    setFormData(prev => ({ ...prev, customerId: customer.id }));
+    setFormData(prev => ({ ...prev, customerId: customer.id.toString() }));
     setShowDropdowns(prev => ({ ...prev, customer: false }));
     setSearchTexts(prev => ({ ...prev, customer: '' }));
   }, []);
@@ -371,7 +363,7 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
     setSelectedLot(lot);
     setFormData(prev => ({
       ...prev,
-      lotId: lot.id,
+      lotId: lot.id.toString(),
       unitPrice: lot.selling_price.toString(),
     }));
     setShowDropdowns(prev => ({ ...prev, lot: false }));
@@ -643,7 +635,7 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
 
   // Render lot selection dropdown
   const renderLotDropdown = () => {
-    if (!selectedProduct || selectedProduct.lots.length === 0) {
+    if (!selectedProduct || lots.length === 0) {
       return (
         <View style={styles.noLotsContainer}>
           <Text style={styles.noLotsText}>No lots available for this product</Text>
@@ -651,10 +643,8 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
       );
     }
 
-    // Sort lots by purchase date (FIFO - First In, First Out)
-    const sortedLots = [...selectedProduct.lots].sort((a, b) =>
-      new Date(a.purchase_date).getTime() - new Date(b.purchase_date).getTime()
-    );
+    // Sort lots by lot number (FIFO - First In, First Out)
+    const sortedLots = [...lots].sort((a, b) => a.lot_number - b.lot_number);
 
     return (
       <View style={styles.dropdownContainer}>
@@ -670,7 +660,7 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
             styles.dropdownButtonText,
             { color: selectedLot ? theme.colors.text.primary : theme.colors.text.muted }
           ]}>
-            {selectedLot ? `${selectedLot.lot_number} (${selectedLot.quantity} ${selectedProduct.unit_of_measure})` : 'Select lot (FIFO order)'}
+            {selectedLot ? `Lot ${selectedLot.lot_number} (${selectedLot.quantity} units)` : 'Select lot (FIFO order)'}
           </Text>
           <ChevronDown
             size={20}
@@ -711,12 +701,12 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
                         {index === 0 && <Text style={styles.fifoLabel}> 🔥 FIFO</Text>}
                       </Text>
                       <Text style={styles.lotItemQuantity}>
-                        {lot.quantity} {selectedProduct.unit_of_measure}
+                        {lot.quantity} units
                       </Text>
                     </View>
                     <View style={styles.lotItemDetails}>
                       <Text style={styles.lotItemDate}>
-                        Purchase: {new Date(lot.purchase_date).toLocaleDateString()}
+                        Received: {lot.received_date ? new Date(lot.received_date).toLocaleDateString() : 'N/A'}
                       </Text>
                       <Text style={styles.lotItemPrice}>
                         Price: ৳{lot.selling_price}
@@ -978,12 +968,12 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
             <View style={styles.lotInfoRow}>
               <Text style={styles.lotInfoLabel}>Available Quantity:</Text>
               <Text style={[styles.lotInfoValue, { color: theme.colors.status.success }]}>
-                {selectedLot.quantity} {selectedProduct?.unit_of_measure}
+                {selectedLot.quantity} units
               </Text>
             </View>
             <View style={styles.lotInfoRow}>
-              <Text style={styles.lotInfoLabel}>Purchase Date:</Text>
-              <Text style={styles.lotInfoValue}>{new Date(selectedLot.purchase_date).toLocaleDateString()}</Text>
+              <Text style={styles.lotInfoLabel}>Received Date:</Text>
+              <Text style={styles.lotInfoValue}>{selectedLot.received_date ? new Date(selectedLot.received_date).toLocaleDateString() : 'N/A'}</Text>
             </View>
             <View style={styles.lotInfoRow}>
               <Text style={styles.lotInfoLabel}>Purchase Price:</Text>
@@ -1045,11 +1035,11 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
             <View style={styles.stockCalculationCard}>
               <View style={styles.stockCalculationRow}>
                 <Text style={styles.stockCalculationLabel}>Available in Lot:</Text>
-                <Text style={styles.stockCalculationValue}>{selectedLot.quantity} {selectedProduct?.unit_of_measure}</Text>
+                <Text style={styles.stockCalculationValue}>{selectedLot.quantity} units</Text>
               </View>
               <View style={styles.stockCalculationRow}>
                 <Text style={styles.stockCalculationLabel}>Selling Quantity:</Text>
-                <Text style={styles.stockCalculationValue}>{formData.quantity || 0} {selectedProduct?.unit_of_measure}</Text>
+                <Text style={styles.stockCalculationValue}>{formData.quantity || 0} units</Text>
               </View>
               <View style={[styles.stockCalculationRow, styles.stockCalculationTotal]}>
                 <Text style={styles.stockCalculationLabel}>Remaining in Lot:</Text>
@@ -1062,7 +1052,7 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
                     fontWeight: '700'
                   }
                 ]}>
-                  {(selectedLot.quantity - parseFloat(formData.quantity || '0')).toFixed(2)} {selectedProduct?.unit_of_measure}
+                  {(selectedLot.quantity - parseFloat(formData.quantity || '0')).toFixed(2)} units
                 </Text>
               </View>
 
