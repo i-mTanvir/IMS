@@ -41,6 +41,7 @@ CREATE TABLE locations (
     manager_name VARCHAR(100),
     manager_phone VARCHAR(20),
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+    created_by INTEGER REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -50,6 +51,7 @@ CREATE TABLE categories (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
+    created_by INTEGER REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -64,6 +66,7 @@ CREATE TABLE suppliers (
     address TEXT,
     payment_terms TEXT,
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+    created_by INTEGER REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -113,6 +116,7 @@ CREATE TABLE customers (
     red_list_since TIMESTAMP WITH TIME ZONE,
     fixed_coupon VARCHAR(50),
     profile_picture TEXT,
+    created_by INTEGER REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

@@ -42,6 +42,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
 import TopNavBar from '@/components/TopNavBar';
 import BottomNavBar from '@/components/BottomNavBar';
+import { FormService } from '@/lib/services/formService';
 
 // Types for mobile activity logs
 interface MobileActivityLog {
@@ -248,12 +249,66 @@ export default function LogsPage() {
     const router = useRouter();
 
     // State management
-    const [logs] = useState<MobileActivityLog[]>(mockActivityLogs);
+    const [logs, setLogs] = useState<MobileActivityLog[]>([]);
     const [filters, setFilters] = useState<LogFilters>({});
     const [refreshing, setRefreshing] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [showFilters, setShowFilters] = useState(false);
     const [selectedLog, setSelectedLog] = useState<MobileActivityLog | null>(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
+
+    // Load activity logs from database
+    const loadLogs = async () => {
+        try {
+            setLoading(true);
+
+            // Fetch activity logs from database
+            const logsData = await FormService.getActivityLogs(filters);
+
+            // Transform database logs to UI format
+            const transformedLogs: MobileActivityLog[] = logsData.map((log: any) => ({
+                id: log.id.toString(),
+                userId: log.user_id?.toString() || '',
+                userName: 'User ' + (log.user_id || 'Unknown'), // Would need to join with users table
+                action: log.action,
+                module: log.module,
+                description: log.description,
+                entityType: log.entity_type,
+                entityId: log.entity_id?.toString(),
+                oldValues: log.old_values,
+                newValues: log.new_values,
+                ipAddress: log.ip_address,
+                userAgent: log.user_agent,
+                timestamp: new Date(log.created_at),
+                severity: log.action === 'DELETE' ? 'high' :
+                         log.action === 'CREATE' ? 'medium' : 'low',
+                category: log.module?.toLowerCase() || 'system',
+            }));
+
+            setLogs(transformedLogs);
+        } catch (error) {
+            console.error('Failed to load activity logs:', error);
+            Alert.alert('Error', 'Failed to load activity logs');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Load data on component mount
+    React.useEffect(() => {
+        loadLogs();
+    }, []);
+
+    // Reload when filters change
+    React.useEffect(() => {
+        loadLogs();
+    }, [filters]);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await loadLogs();
+        setRefreshing(false);
+    };
 
     // Filtered logs
     const filteredLogs = useMemo(() => {
@@ -368,14 +423,6 @@ export default function LogsPage() {
     };
 
     // Event handlers
-    const onRefresh = () => {
-        setRefreshing(true);
-        // Simulate API call
-        setTimeout(() => {
-            setRefreshing(false);
-        }, 1000);
-    };
-
     const handleLogPress = (log: MobileActivityLog) => {
         setSelectedLog(log);
         setShowDetailModal(true);

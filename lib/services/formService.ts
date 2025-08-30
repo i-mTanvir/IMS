@@ -1,23 +1,19 @@
 import { supabase } from '../supabase';
 import type { 
-  User, Product, Category, Supplier, Location, Customer, 
-  Sale, SaleItem, ProductLot, Transfer, SampleTracking, Payment 
+  Product, Customer, Supplier, Category, Location,
+  Sale, ProductLot
 } from '../supabase';
 
-// Form submission interfaces
+// Form data interfaces
 export interface ProductFormData {
   name: string;
   product_code: string;
-  category_id?: number;
+  category_id: number;
   description?: string;
-  purchase_price: number;
-  selling_price: number;
-  per_meter_price?: number;
-  supplier_id?: number;
-  location_id?: number;
+  supplier_id: number;
+  location_id: number;
   minimum_threshold: number;
-  current_stock?: number;
-  images?: any;
+  unit_of_measurement?: string;
 }
 
 export interface CustomerFormData {
@@ -33,11 +29,18 @@ export interface CustomerFormData {
 
 export interface SupplierFormData {
   name: string;
-  company_name: string;
-  email?: string;
+  contact_person?: string;
   phone?: string;
+  email?: string;
   address?: string;
-  payment_terms?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postal_code?: string;
+  tax_number?: string;
+  payment_terms?: number;
+  credit_limit?: number;
+  notes?: string;
 }
 
 export interface CategoryFormData {
@@ -51,590 +54,152 @@ export interface SaleFormData {
   discount_amount?: number;
   tax_amount?: number;
   total_amount: number;
-  payment_method?: 'cash' | 'card' | 'bank_transfer' | 'mobile_banking';
-  delivery_person?: string;
+  paid_amount?: number;
+  due_amount?: number;
+  payment_method?: string;
+  payment_status: string;
+  sale_status: string;
+  due_date?: string;
   location_id?: number;
-  items: SaleItemFormData[];
-}
-
-export interface SaleItemFormData {
-  product_id: number;
-  quantity: number;
-  unit_price: number;
-  total_price: number;
-}
-
-export interface TransferFormData {
-  product_id: number;
-  from_location_id: number;
-  to_location_id: number;
-  quantity: number;
   notes?: string;
+  items: Array<{
+    product_id: number;
+    lot_id: number;
+    quantity: number;
+    unit_price: number;
+    total_price: number;
+  }>;
 }
 
-export interface UserFormData {
-  name: string;
-  email: string;
-  password: string;
-  role: 'super_admin' | 'admin' | 'sales_manager' | 'investor';
-  assigned_location_id?: number;
-  permissions?: any;
-  phone?: string;
-}
-
-// Form Service Class
 export class FormService {
-  // Validation helpers
-  static validateEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  }
-
-  static validatePhone(phone: string): boolean {
-    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
-  }
-
-  static validateRequired(value: any, fieldName: string): string | null {
-    if (!value || (typeof value === 'string' && value.trim() === '')) {
-      return `${fieldName} is required`;
+  // Helper function to ensure user context is set
+  private static async ensureUserContext(userId?: number): Promise<void> {
+    try {
+      const contextUserId = userId || 1;
+      await supabase.rpc('set_user_context', { user_id: contextUserId });
+    } catch (error) {
+      console.warn('Failed to set user context:', error);
     }
-    return null;
-  }
-
-  static validateNumber(value: string, fieldName: string, min?: number, max?: number): string | null {
-    const num = parseFloat(value);
-    if (isNaN(num)) {
-      return `${fieldName} must be a valid number`;
-    }
-    if (min !== undefined && num < min) {
-      return `${fieldName} must be at least ${min}`;
-    }
-    if (max !== undefined && num > max) {
-      return `${fieldName} must not exceed ${max}`;
-    }
-    return null;
   }
 
   // Product Operations
   static async createProduct(data: ProductFormData, userId: number): Promise<{ success: boolean; data?: Product; error?: string }> {
     try {
-      // Validation
-      const nameError = this.validateRequired(data.name, 'Product name');
-      if (nameError) return { success: false, error: nameError };
-
-      const priceError = this.validateNumber(data.purchase_price.toString(), 'Purchase price', 0);
-      if (priceError) return { success: false, error: priceError };
-
-      const sellingPriceError = this.validateNumber(data.selling_price.toString(), 'Selling price', 0);
-      if (sellingPriceError) return { success: false, error: sellingPriceError };
-
-      if (data.selling_price <= data.purchase_price) {
-        return { success: false, error: 'Selling price must be greater than purchase price' };
-      }
-
-      const productData = {
-        ...data,
-        created_by: userId,
-        current_lot_number: 1,
-        total_purchased: data.current_stock || 0,
-        total_sold: 0,
-        wastage_status: false,
-        product_status: 'active' as const
-      };
+      await this.ensureUserContext(userId);
 
       const { data: product, error } = await supabase
         .from('products')
-        .insert(productData)
+        .insert([{
+          ...data,
+          created_by: userId,
+        }])
         .select()
         .single();
 
       if (error) {
-        console.error('Product creation error:', error);
-        return { success: false, error: this.getErrorMessage(error) };
+        console.error('Error creating product:', error);
+        return { success: false, error: error.message };
       }
-
-      // Create initial product lot entry
-      if (data.current_stock && data.current_stock > 0) {
-        const lotData = {
-          product_id: product.id,
-          lot_number: 1,
-          quantity: data.current_stock,
-          purchase_price: data.purchase_price,
-          selling_price: data.selling_price,
-          supplier_id: data.supplier_id,
-          location_id: data.location_id,
-          status: 'active',
-          created_by: userId
-        };
-
-        const { error: lotError } = await supabase
-          .from('products_lot')
-          .insert(lotData);
-
-        if (lotError) {
-          console.warn('Product lot creation failed:', lotError);
-          // Don't fail the entire operation, just log the warning
-        }
-      }
-
-      // Log activity (non-blocking)
-      this.logActivity(userId, 'CREATE', 'PRODUCT', `Created product: ${product.name} with lot #1`).catch(err => {
-        console.warn('Activity logging failed, but operation succeeded:', err);
-      });
 
       return { success: true, data: product };
     } catch (error) {
-      console.error('Product creation failed:', error);
+      console.error('Error creating product:', error);
       return { success: false, error: 'Failed to create product' };
     }
   }
 
-  static async addStockToExistingProduct(productId: number, data: ProductFormData, userId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+  static async getProducts(filters?: any): Promise<any[]> {
     try {
-      // Validation
-      const stockError = this.validateNumber(data.current_stock?.toString() || '0', 'Stock quantity', 0);
-      if (stockError) return { success: false, error: stockError };
+      await this.ensureUserContext();
 
-      const priceError = this.validateNumber(data.purchase_price.toString(), 'Purchase price', 0);
-      if (priceError) return { success: false, error: priceError };
-
-      const sellingPriceError = this.validateNumber(data.selling_price.toString(), 'Selling price', 0);
-      if (sellingPriceError) return { success: false, error: sellingPriceError };
-
-      if (data.selling_price <= data.purchase_price) {
-        return { success: false, error: 'Selling price must be greater than purchase price' };
-      }
-
-      // Get current product data
-      const { data: currentProduct, error: fetchError } = await supabase
+      let query = supabase
         .from('products')
-        .select('current_stock, current_lot_number')
-        .eq('id', productId)
-        .single();
-
-      if (fetchError) {
-        console.error('Error fetching current product:', fetchError);
-        return { success: false, error: 'Failed to fetch current product data' };
+        .select(`
+          *,
+          categories(name),
+          suppliers(name),
+          locations(name)
+        `);
+      
+      if (filters?.search) {
+        query = query.or(`name.ilike.%${filters.search}%,product_code.ilike.%${filters.search}%`);
+      }
+      if (filters?.category) {
+        query = query.eq('category_id', filters.category);
+      }
+      if (filters?.location) {
+        query = query.eq('location_id', filters.location);
       }
 
-      const newLotNumber = (currentProduct.current_lot_number || 0) + 1;
-      const newTotalStock = (currentProduct.current_stock || 0) + (data.current_stock || 0);
+      query = query.order('created_at', { ascending: false });
 
-      // Create new lot entry
-      const lotData = {
-        product_id: productId,
-        lot_number: newLotNumber,
-        quantity: data.current_stock,
-        purchase_price: data.purchase_price,
-        selling_price: data.selling_price,
-        supplier_id: data.supplier_id,
-        location_id: data.location_id,
-        status: 'active',
-        created_by: userId
-      };
-
-      const { data: newLot, error: lotError } = await supabase
-        .from('products_lot')
-        .insert(lotData)
-        .select()
-        .single();
-
-      if (lotError) {
-        console.error('Lot creation error:', lotError);
-        return { success: false, error: this.getErrorMessage(lotError) };
+      const { data, error } = await query;
+      if (error) {
+        console.error('Error fetching products:', error);
+        return [];
       }
 
-      // Update product with new stock and lot number
-      const { error: updateError } = await supabase
-        .from('products')
-        .update({
-          current_stock: newTotalStock,
-          current_lot_number: newLotNumber,
-          total_purchased: (currentProduct.total_purchased || 0) + (data.current_stock || 0),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', productId);
-
-      if (updateError) {
-        console.error('Product update error:', updateError);
-        return { success: false, error: this.getErrorMessage(updateError) };
-      }
-
-      // Log activity (non-blocking)
-      this.logActivity(userId, 'UPDATE', 'PRODUCT', `Added stock to product ID ${productId}, Lot #${newLotNumber}`).catch(err => {
-        console.warn('Activity logging failed, but operation succeeded:', err);
-      });
-
-      return { success: true, data: newLot };
+      return (data || []).map((product: any) => ({
+        ...product,
+        category_name: product.categories?.name,
+        supplier_name: product.suppliers?.name,
+        location_name: product.locations?.name,
+      }));
     } catch (error) {
-      console.error('Add stock error:', error);
-      return { success: false, error: 'Failed to add stock to product' };
+      console.error('Error fetching products:', error);
+      return [];
     }
   }
 
   // Customer Operations
   static async createCustomer(data: CustomerFormData, userId: number): Promise<{ success: boolean; data?: Customer; error?: string }> {
     try {
-      // Validation
-      const nameError = this.validateRequired(data.name, 'Customer name');
-      if (nameError) return { success: false, error: nameError };
-
-      if (data.email && !this.validateEmail(data.email)) {
-        return { success: false, error: 'Please enter a valid email address' };
-      }
-
-      if (data.phone && !this.validatePhone(data.phone)) {
-        return { success: false, error: 'Please enter a valid phone number' };
-      }
-
-      const customerData = {
-        ...data,
-        total_purchases: 0,
-        total_due: 0,
-        red_list_status: false
-      };
+      await this.ensureUserContext(userId);
 
       const { data: customer, error } = await supabase
         .from('customers')
-        .insert(customerData)
+        .insert([{
+          ...data,
+          created_by: userId,
+        }])
         .select()
         .single();
 
       if (error) {
-        console.error('Customer creation error:', error);
-        return { success: false, error: this.getErrorMessage(error) };
+        console.error('Error creating customer:', error);
+        return { success: false, error: error.message };
       }
-
-      // Log activity (non-blocking)
-      this.logActivity(userId, 'CREATE', 'CUSTOMER', `Created customer: ${customer.name}`).catch(err => {
-        console.warn('Activity logging failed, but operation succeeded:', err);
-      });
 
       return { success: true, data: customer };
     } catch (error) {
-      console.error('Customer creation failed:', error);
+      console.error('Error creating customer:', error);
       return { success: false, error: 'Failed to create customer' };
     }
   }
 
-  // Supplier Operations
-  static async createSupplier(data: SupplierFormData, userId: number): Promise<{ success: boolean; data?: Supplier; error?: string }> {
+  static async getCustomers(filters?: any): Promise<any[]> {
     try {
-      const supplierData = {
-        ...data,
-        status: 'active' as const
-      };
+      await this.ensureUserContext();
 
-      const { data: supplier, error } = await supabase
-        .from('suppliers')
-        .insert(supplierData)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Supplier creation error:', error);
-        return { success: false, error: error.message };
+      let query = supabase.from('customers').select('*');
+      
+      if (filters?.customer_type) {
+        query = query.eq('customer_type', filters.customer_type);
+      }
+      if (filters?.red_list_status !== undefined) {
+        query = query.eq('red_list_status', filters.red_list_status);
+      }
+      if (filters?.search) {
+        query = query.or(`name.ilike.%${filters.search}%,email.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`);
       }
 
-      // Log activity
-      await this.logActivity(userId, 'CREATE', 'SUPPLIER', `Created supplier: ${supplier.company_name}`);
+      query = query.order('created_at', { ascending: false });
 
-      return { success: true, data: supplier };
-    } catch (error) {
-      console.error('Supplier creation failed:', error);
-      return { success: false, error: 'Failed to create supplier' };
-    }
-  }
-
-  // Category Operations
-  static async createCategory(data: CategoryFormData, userId: number): Promise<{ success: boolean; data?: Category; error?: string }> {
-    try {
-      const { data: category, error } = await supabase
-        .from('categories')
-        .insert(data)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Category creation error:', error);
-        return { success: false, error: error.message };
-      }
-
-      // Log activity (non-blocking)
-      this.logActivity(userId, 'CREATE', 'CATEGORY', `Created category: ${category.name}`).catch(err => {
-        console.warn('Activity logging failed, but operation succeeded:', err);
-      });
-
-      return { success: true, data: category };
-    } catch (error) {
-      console.error('Category creation failed:', error);
-      return { success: false, error: 'Failed to create category' };
-    }
-  }
-
-  // Sale Operations
-  static async createSale(data: SaleFormData, userId: number): Promise<{ success: boolean; data?: Sale; error?: string }> {
-    try {
-      // Generate sale number
-      const saleNumber = await this.generateSaleNumber();
-
-      const saleData = {
-        sale_number: saleNumber,
-        customer_id: data.customer_id,
-        subtotal: data.subtotal,
-        discount_amount: data.discount_amount || 0,
-        tax_amount: data.tax_amount || 0,
-        total_amount: data.total_amount,
-        paid_amount: 0,
-        due_amount: data.total_amount,
-        payment_method: data.payment_method,
-        payment_status: 'pending' as const,
-        sale_status: 'draft' as const,
-        delivery_person: data.delivery_person,
-        location_id: data.location_id,
-        created_by: userId
-      };
-
-      const { data: sale, error } = await supabase
-        .from('sales')
-        .insert(saleData)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Sale creation error:', error);
-        return { success: false, error: error.message };
-      }
-
-      // Create sale items
-      if (data.items && data.items.length > 0) {
-        const saleItems = data.items.map(item => ({
-          sale_id: sale.id,
-          product_id: item.product_id,
-          lot_id: 1, // Default lot, should be selected from FIFO
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.total_price
-        }));
-
-        const { error: itemsError } = await supabase
-          .from('sale_items')
-          .insert(saleItems);
-
-        if (itemsError) {
-          console.error('Sale items creation error:', itemsError);
-          return { success: false, error: itemsError.message };
-        }
-      }
-
-      // Log activity
-      await this.logActivity(userId, 'CREATE', 'SALE', `Created sale: ${sale.sale_number}`);
-
-      return { success: true, data: sale };
-    } catch (error) {
-      console.error('Sale creation failed:', error);
-      return { success: false, error: 'Failed to create sale' };
-    }
-  }
-
-  // Transfer Operations
-  static async createTransfer(data: TransferFormData, userId: number): Promise<{ success: boolean; data?: Transfer; error?: string }> {
-    try {
-      const transferData = {
-        ...data,
-        transfer_status: 'requested' as const,
-        requested_by: userId,
-        requested_at: new Date().toISOString()
-      };
-
-      const { data: transfer, error } = await supabase
-        .from('transfers')
-        .insert(transferData)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Transfer creation error:', error);
-        return { success: false, error: error.message };
-      }
-
-      // Log activity
-      await this.logActivity(userId, 'CREATE', 'TRANSFER', `Created transfer request for ${data.quantity} units`);
-
-      return { success: true, data: transfer };
-    } catch (error) {
-      console.error('Transfer creation failed:', error);
-      return { success: false, error: 'Failed to create transfer' };
-    }
-  }
-
-  // User Operations
-  static async createUser(data: UserFormData, userId: number): Promise<{ success: boolean; data?: User; error?: string }> {
-    try {
-      // For demo purposes, we'll use a simple password hash
-      // In production, use proper password hashing like bcrypt
-      const passwordHash = `hashed_${data.password}_${Date.now()}`;
-
-      const userData = {
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        role: data.role,
-        permissions: data.permissions || {},
-        assigned_location_id: data.assigned_location_id,
-        can_add_sales_managers: data.role === 'admin' || data.role === 'super_admin',
-        status: 'active' as const,
-        password_hash: passwordHash
-      };
-
-      const { data: user, error } = await supabase
-        .from('users')
-        .insert(userData)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('User creation error:', error);
-        return { success: false, error: error.message };
-      }
-
-      // Log activity
-      await this.logActivity(userId, 'CREATE', 'USER', `Created user: ${user.name} (${user.role})`);
-
-      return { success: true, data: user };
-    } catch (error) {
-      console.error('User creation failed:', error);
-      return { success: false, error: 'Failed to create user' };
-    }
-  }
-
-  // Helper Functions
-  static async generateSaleNumber(): Promise<string> {
-    try {
-      const { data, error } = await supabase
-        .from('sales')
-        .select('sale_number')
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (error) {
-        console.error('Error generating sale number:', error);
-        return `SALE-${Date.now()}`;
-      }
-
-      const lastSaleNumber = data?.[0]?.sale_number;
-      if (lastSaleNumber) {
-        const match = lastSaleNumber.match(/SALE-(\d+)/);
-        if (match) {
-          const nextNumber = parseInt(match[1]) + 1;
-          return `SALE-${nextNumber.toString().padStart(6, '0')}`;
-        }
-      }
-
-      return 'SALE-000001';
-    } catch (error) {
-      console.error('Error generating sale number:', error);
-      return `SALE-${Date.now()}`;
-    }
-  }
-
-  // Data fetching helpers for form dropdowns
-  static async getCategories(): Promise<Category[]> {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .order('name');
-
-      if (error) {
-        console.error('Error fetching categories:', error);
-        return [];
-      }
-
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      return [];
-    }
-  }
-
-  static async getSuppliers(): Promise<Supplier[]> {
-    try {
-      const { data, error } = await supabase
-        .from('suppliers')
-        .select('*')
-        .eq('status', 'active')
-        .order('company_name');
-
-      if (error) {
-        console.error('Error fetching suppliers:', error);
-        return [];
-      }
-
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching suppliers:', error);
-      return [];
-    }
-  }
-
-  static async getLocations(): Promise<Location[]> {
-    try {
-      const { data, error } = await supabase
-        .from('locations')
-        .select('*')
-        .eq('status', 'active')
-        .order('name');
-
-      if (error) {
-        console.error('Error fetching locations:', error);
-        return [];
-      }
-
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching locations:', error);
-      return [];
-    }
-  }
-
-  static async getExistingProducts(): Promise<Product[]> {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select(`
-          *,
-          categories(name),
-          suppliers(name, company_name)
-        `)
-        .eq('product_status', 'active')
-        .order('name');
-
-      if (error) {
-        console.error('Error fetching existing products:', error);
-        return [];
-      }
-
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching existing products:', error);
-      return [];
-    }
-  }
-
-  static async getCustomers(): Promise<Customer[]> {
-    try {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .order('name');
-
+      const { data, error } = await query;
       if (error) {
         console.error('Error fetching customers:', error);
         return [];
       }
-
       return data || [];
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -642,232 +207,460 @@ export class FormService {
     }
   }
 
-  static async getProductLots(productId: number): Promise<ProductLot[]> {
+  static async getRedListCustomers(): Promise<any[]> {
     try {
-      const { data, error } = await supabase
-        .from('products_lot')
-        .select('*')
-        .eq('product_id', productId)
-        .eq('status', 'active')
-        .gt('quantity', 0) // Only lots with available quantity
-        .order('lot_number');
-
-      if (error) {
-        console.error('Error fetching product lots:', error);
-        return [];
-      }
-
+      await this.ensureUserContext();
+      const { data, error } = await supabase.from('red_list_customers').select('*').order('overdue_count', { ascending: false });
+      if (error) throw error;
       return data || [];
     } catch (error) {
-      console.error('Error fetching product lots:', error);
+      console.error('Error fetching red list customers:', error);
       return [];
     }
   }
 
-  static async getProducts(): Promise<Product[]> {
+  // Supplier Operations
+  static async createSupplier(data: SupplierFormData, userId: number): Promise<{ success: boolean; data?: Supplier; error?: string }> {
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*, categories(name), suppliers(company_name), locations(name)')
-        .eq('product_status', 'active')
-        .order('name');
+      await this.ensureUserContext(userId);
 
-      if (error) {
-        console.error('Error fetching products:', error);
-        return [];
-      }
-
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      return [];
-    }
-  }
-
-  // Error message helper
-  static getErrorMessage(error: any): string {
-    if (error?.code === '23505') {
-      return 'This record already exists. Please use a different name or code.';
-    }
-    if (error?.code === '23503') {
-      return 'Invalid reference. Please check your selections.';
-    }
-    if (error?.code === '23514') {
-      return 'Invalid data format. Please check your inputs.';
-    }
-    return error?.message || 'An unexpected error occurred';
-  }
-
-  // Activity logging helper
-  static async logActivity(userId: number, action: string, module: string, description: string) {
-    try {
-      console.log('Logging activity:', { userId, action, module, description });
-
-      const { data, error } = await supabase.from('activity_logs').insert({
-        user_id: userId,
-        action,
-        module,
-        description,
-        credit_amount: 0,
-        debit_amount: 0
-      });
-
-      if (error) {
-        console.error('Activity logging error:', error);
-      } else {
-        console.log('Activity logged successfully:', data);
-      }
-    } catch (error) {
-      console.error('Failed to log activity:', error);
-    }
-  }
-
-  // Batch validation helper
-  static validateFormData(data: any, rules: { [key: string]: any }): string[] {
-    const errors: string[] = [];
-
-    for (const [field, rule] of Object.entries(rules)) {
-      const value = data[field];
-
-      if (rule.required) {
-        const error = this.validateRequired(value, rule.label || field);
-        if (error) errors.push(error);
-      }
-
-      if (rule.type === 'email' && value) {
-        if (!this.validateEmail(value)) {
-          errors.push(`${rule.label || field} must be a valid email address`);
-        }
-      }
-
-      if (rule.type === 'phone' && value) {
-        if (!this.validatePhone(value)) {
-          errors.push(`${rule.label || field} must be a valid phone number`);
-        }
-      }
-
-      if (rule.type === 'number' && value) {
-        const error = this.validateNumber(value.toString(), rule.label || field, rule.min, rule.max);
-        if (error) errors.push(error);
-      }
-    }
-
-    return errors;
-  }
-
-  static async createSale(saleData: any, userId: number): Promise<{ success: boolean; data?: any; error?: string }> {
-    try {
-      // Validation
-      if (!saleData.productId || !saleData.lotId || !saleData.customerId) {
-        return { success: false, error: 'Product, lot, and customer are required' };
-      }
-
-      const quantity = parseFloat(saleData.quantity);
-      if (!quantity || quantity <= 0) {
-        return { success: false, error: 'Valid quantity is required' };
-      }
-
-      // Check if lot has enough quantity
-      const { data: lot, error: lotError } = await supabase
-        .from('products_lot')
-        .select('quantity, selling_price')
-        .eq('id', saleData.lotId)
-        .single();
-
-      if (lotError || !lot) {
-        return { success: false, error: 'Lot not found' };
-      }
-
-      if (lot.quantity < quantity) {
-        return { success: false, error: `Insufficient stock. Available: ${lot.quantity}` };
-      }
-
-      // Calculate totals
-      const unitPrice = parseFloat(saleData.unitPrice) || lot.selling_price;
-      const subtotal = quantity * unitPrice;
-      const discountAmount = parseFloat(saleData.discountAmount) || 0;
-      const total = subtotal - discountAmount;
-
-      // Create sale record
-      const saleRecord = {
-        customer_id: parseInt(saleData.customerId),
-        product_id: parseInt(saleData.productId),
-        lot_id: parseInt(saleData.lotId),
-        quantity: quantity,
-        unit_price: unitPrice,
-        subtotal: subtotal,
-        discount_type: saleData.discountType || 'none',
-        discount_amount: discountAmount,
-        total_amount: total,
-        payment_method: saleData.paymentMethod || 'cash',
-        payment_status: saleData.paymentStatus || 'paid',
-        sale_date: new Date().toISOString(),
-        notes: saleData.notes || '',
-        created_by: userId,
-        status: 'completed'
-      };
-
-      const { data: sale, error: saleError } = await supabase
-        .from('sales')
-        .insert(saleRecord)
+      const { data: supplier, error } = await supabase
+        .from('suppliers')
+        .insert([{
+          ...data,
+          created_by: userId,
+        }])
         .select()
         .single();
 
-      if (saleError) {
-        console.error('Sale creation error:', saleError);
-        return { success: false, error: this.getErrorMessage(saleError) };
+      if (error) {
+        console.error('Error creating supplier:', error);
+        return { success: false, error: error.message };
       }
 
-      // Update lot quantity
-      const newLotQuantity = lot.quantity - quantity;
-      const { error: lotUpdateError } = await supabase
-        .from('products_lot')
-        .update({
-          quantity: newLotQuantity,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', saleData.lotId);
+      return { success: true, data: supplier };
+    } catch (error) {
+      console.error('Error creating supplier:', error);
+      return { success: false, error: 'Failed to create supplier' };
+    }
+  }
 
-      if (lotUpdateError) {
-        console.warn('Lot quantity update failed:', lotUpdateError);
-        // Don't fail the entire operation, just log the warning
-      }
+  static async getSuppliers(): Promise<any[]> {
+    try {
+      await this.ensureUserContext();
+      const { data, error } = await supabase.from('suppliers').select('*').order('name');
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+      return [];
+    }
+  }
 
-      // Update product current stock
-      const { data: product, error: productFetchError } = await supabase
-        .from('products')
-        .select('current_stock, total_sold')
-        .eq('id', saleData.productId)
+  // Category Operations
+  static async createCategory(data: CategoryFormData, userId: number): Promise<{ success: boolean; data?: Category; error?: string }> {
+    try {
+      await this.ensureUserContext(userId);
+
+      const { data: category, error } = await supabase
+        .from('categories')
+        .insert([{
+          ...data,
+          created_by: userId,
+        }])
+        .select()
         .single();
 
-      if (!productFetchError && product) {
-        const newCurrentStock = (product.current_stock || 0) - quantity;
-        const newTotalSold = (product.total_sold || 0) + quantity;
-
-        const { error: productUpdateError } = await supabase
-          .from('products')
-          .update({
-            current_stock: Math.max(0, newCurrentStock),
-            total_sold: newTotalSold,
-            last_sold: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', saleData.productId);
-
-        if (productUpdateError) {
-          console.warn('Product stock update failed:', productUpdateError);
-        }
+      if (error) {
+        console.error('Error creating category:', error);
+        return { success: false, error: error.message };
       }
 
-      // Log activity (non-blocking)
-      this.logActivity(userId, 'CREATE', 'SALE', `Created sale for ${quantity} units`).catch(err => {
-        console.warn('Activity logging failed, but operation succeeded:', err);
-      });
+      return { success: true, data: category };
+    } catch (error) {
+      console.error('Error creating category:', error);
+      return { success: false, error: 'Failed to create category' };
+    }
+  }
+
+  // Location Operations
+  static async getLocations(): Promise<any[]> {
+    try {
+      await this.ensureUserContext();
+      const { data, error } = await supabase.from('locations').select('*').order('name');
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      return [];
+    }
+  }
+
+  // Sale Operations
+  static async createSale(saleData: any, userId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      await this.ensureUserContext(userId);
+
+      const { data: sale, error } = await supabase
+        .from('sales')
+        .insert([{
+          ...saleData,
+          created_by: userId,
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating sale:', error);
+        return { success: false, error: error.message };
+      }
 
       return { success: true, data: sale };
     } catch (error) {
-      console.error('Sale creation error:', error);
+      console.error('Error creating sale:', error);
       return { success: false, error: 'Failed to create sale' };
     }
+  }
+
+  static async getSalesSummary(filters?: any): Promise<any[]> {
+    try {
+      await this.ensureUserContext();
+
+      let query = supabase.from('sales_summary').select('*');
+
+      if (filters?.startDate) {
+        query = query.gte('created_at', filters.startDate);
+      }
+      if (filters?.endDate) {
+        query = query.lte('created_at', filters.endDate);
+      }
+      if (filters?.customerId) {
+        query = query.eq('customer_id', filters.customerId);
+      }
+      if (filters?.paymentStatus) {
+        query = query.eq('payment_status', filters.paymentStatus);
+      }
+
+      query = query.order('created_at', { ascending: false });
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('Error fetching sales summary:', error);
+        return [];
+      }
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching sales summary:', error);
+      return [];
+    }
+  }
+
+  // Dashboard and Analytics
+  static async getDashboardStats(): Promise<any> {
+    try {
+      await this.ensureUserContext();
+
+      const { data: salesStats, error: salesError } = await supabase
+        .from('sales')
+        .select('total_amount, payment_status, created_at')
+        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+
+      const { data: inventoryStats, error: inventoryError } = await supabase
+        .from('inventory_summary')
+        .select('*');
+
+      const { data: lowStockProducts, error: lowStockError } = await supabase
+        .from('low_stock_products')
+        .select('*');
+
+      const totalSales = salesStats?.reduce((sum, sale) => sum + parseFloat(sale.total_amount || '0'), 0) || 0;
+      const paidSales = salesStats?.filter(sale => sale.payment_status === 'paid')
+        .reduce((sum, sale) => sum + parseFloat(sale.total_amount || '0'), 0) || 0;
+
+      return {
+        totalSales: { value: totalSales, formatted: `৳${totalSales.toLocaleString()}` },
+        paidSales: { value: paidSales, formatted: `৳${paidSales.toLocaleString()}` },
+        totalProducts: { value: inventoryStats?.length || 0, formatted: (inventoryStats?.length || 0).toString() },
+        lowStockCount: { value: lowStockProducts?.length || 0, formatted: (lowStockProducts?.length || 0).toString() },
+        alerts: [
+          ...(lowStockProducts?.length > 0 ? [{
+            type: 'warning',
+            title: 'Low Stock Alert',
+            message: `${lowStockProducts.length} products are running low on stock`,
+            action: 'View Inventory'
+          }] : [])
+        ]
+      };
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      return {
+        totalSales: { value: 0, formatted: '৳0' },
+        paidSales: { value: 0, formatted: '৳0' },
+        totalProducts: { value: 0, formatted: '0' },
+        lowStockCount: { value: 0, formatted: '0' },
+        alerts: []
+      };
+    }
+  }
+
+  // Inventory Operations
+  static async getInventorySummary(): Promise<any[]> {
+    try {
+      await this.ensureUserContext();
+      const { data, error } = await supabase.from('inventory_summary').select('*');
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching inventory summary:', error);
+      return [];
+    }
+  }
+
+  static async getLowStockProducts(): Promise<any[]> {
+    try {
+      await this.ensureUserContext();
+      const { data, error } = await supabase.from('low_stock_products').select('*');
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching low stock products:', error);
+      return [];
+    }
+  }
+
+  // Notification Operations
+  static async getNotifications(): Promise<any[]> {
+    try {
+      await this.ensureUserContext();
+      const { data, error } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      return [];
+    }
+  }
+
+  // Activity Log Operations
+  static async getActivityLogs(filters?: any): Promise<any[]> {
+    try {
+      await this.ensureUserContext();
+
+      let query = supabase.from('activity_logs').select('*');
+
+      if (filters?.module) {
+        query = query.eq('module', filters.module);
+      }
+      if (filters?.action) {
+        query = query.eq('action', filters.action);
+      }
+      if (filters?.search) {
+        query = query.or(`description.ilike.%${filters.search}%,module.ilike.%${filters.search}%,action.ilike.%${filters.search}%`);
+      }
+
+      query = query.order('created_at', { ascending: false }).limit(100);
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('Error fetching activity logs:', error);
+        return [];
+      }
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching activity logs:', error);
+      return [];
+    }
+  }
+
+  // Sample Tracking Operations
+  static async getSampleTracking(): Promise<any[]> {
+    try {
+      await this.ensureUserContext();
+      const { data, error } = await supabase.from('sample_tracking').select('*, products(name), customers(name)').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching sample tracking:', error);
+      return [];
+    }
+  }
+
+  // Due Payments Operations
+  static async getDuePaymentsSummary(filters?: any): Promise<any[]> {
+    try {
+      await this.ensureUserContext();
+
+      let query = supabase
+        .from('sales')
+        .select(`
+          *,
+          customers(name, phone, email)
+        `)
+        .neq('payment_status', 'paid')
+        .gt('due_amount', 0);
+
+      if (filters?.customerId) {
+        query = query.eq('customer_id', filters.customerId);
+      }
+      if (filters?.overdue) {
+        query = query.lt('due_date', new Date().toISOString());
+      }
+
+      query = query.order('due_date', { ascending: true });
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('Error fetching due payments:', error);
+        return [];
+      }
+
+      return (data || []).map((payment: any) => ({
+        id: payment.id,
+        customerId: payment.customer_id,
+        customerName: payment.customers?.name || 'Unknown Customer',
+        customerPhone: payment.customers?.phone,
+        customerEmail: payment.customers?.email,
+        saleId: payment.id,
+        saleNumber: payment.sale_number,
+        originalAmount: parseFloat(payment.total_amount || '0'),
+        paidAmount: parseFloat(payment.paid_amount || '0'),
+        dueAmount: parseFloat(payment.due_amount || '0'),
+        dueDate: new Date(payment.due_date),
+        daysPastDue: payment.due_date ? Math.max(0, Math.floor((Date.now() - new Date(payment.due_date).getTime()) / (1000 * 60 * 60 * 24))) : 0,
+        status: payment.payment_status,
+        lastContactDate: new Date(payment.updated_at),
+        notes: payment.notes || '',
+        createdAt: new Date(payment.created_at),
+        updatedAt: new Date(payment.updated_at),
+      }));
+    } catch (error) {
+      console.error('Error fetching due payments summary:', error);
+      return [];
+    }
+  }
+
+  // Sales Statistics Operations
+  static async getSalesStats(filters?: any): Promise<any> {
+    try {
+      await this.ensureUserContext();
+
+      const startDate = filters?.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const endDate = filters?.endDate || new Date().toISOString();
+
+      const { data: salesData, error: salesError } = await supabase
+        .from('sales')
+        .select('*')
+        .gte('created_at', startDate)
+        .lte('created_at', endDate);
+
+      if (salesError) {
+        console.error('Error fetching sales data:', salesError);
+        return this.getDefaultSalesStats();
+      }
+
+      const sales = salesData || [];
+      const totalSales = sales.length;
+      const totalRevenue = sales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || '0'), 0);
+      const paidSales = sales.filter(sale => sale.payment_status === 'paid');
+      const pendingSales = sales.filter(sale => sale.payment_status === 'pending');
+      const overdueSales = sales.filter(sale =>
+        sale.payment_status !== 'paid' &&
+        sale.due_date &&
+        new Date(sale.due_date) < new Date()
+      );
+
+      const totalPaid = paidSales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || '0'), 0);
+      const totalPending = pendingSales.reduce((sum, sale) => sum + parseFloat(sale.due_amount || '0'), 0);
+      const totalOverdue = overdueSales.reduce((sum, sale) => sum + parseFloat(sale.due_amount || '0'), 0);
+
+      return {
+        totalSales: { value: totalSales, formatted: totalSales.toString() },
+        totalRevenue: { value: totalRevenue, formatted: `৳${totalRevenue.toLocaleString()}` },
+        paidAmount: { value: totalPaid, formatted: `৳${totalPaid.toLocaleString()}` },
+        pendingAmount: { value: totalPending, formatted: `৳${totalPending.toLocaleString()}` },
+        overdueAmount: { value: totalOverdue, formatted: `৳${totalOverdue.toLocaleString()}` },
+        paidSalesCount: { value: paidSales.length, formatted: paidSales.length.toString() },
+        pendingSalesCount: { value: pendingSales.length, formatted: pendingSales.length.toString() },
+        overdueSalesCount: { value: overdueSales.length, formatted: overdueSales.length.toString() },
+        averageSaleValue: {
+          value: totalSales > 0 ? totalRevenue / totalSales : 0,
+          formatted: totalSales > 0 ? `৳${(totalRevenue / totalSales).toLocaleString()}` : '৳0'
+        },
+        paymentRate: {
+          value: totalSales > 0 ? (paidSales.length / totalSales) * 100 : 0,
+          formatted: totalSales > 0 ? `${((paidSales.length / totalSales) * 100).toFixed(1)}%` : '0%'
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching sales stats:', error);
+      return this.getDefaultSalesStats();
+    }
+  }
+
+  // User Operations
+  static async createUser(data: any, userId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      await this.ensureUserContext(userId);
+
+      const { data: user, error } = await supabase
+        .from('users')
+        .insert([{
+          ...data,
+          created_by: userId,
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating user:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, data: user };
+    } catch (error) {
+      console.error('Error creating user:', error);
+      return { success: false, error: 'Failed to create user' };
+    }
+  }
+
+  // Transfer Operations
+  static async createTransfer(data: any, userId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      await this.ensureUserContext(userId);
+
+      const { data: transfer, error } = await supabase
+        .from('transfers')
+        .insert([{
+          ...data,
+          requested_by: userId, // transfers use requested_by instead of created_by
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating transfer:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, data: transfer };
+    } catch (error) {
+      console.error('Error creating transfer:', error);
+      return { success: false, error: 'Failed to create transfer' };
+    }
+  }
+
+  private static getDefaultSalesStats() {
+    return {
+      totalSales: { value: 0, formatted: '0' },
+      totalRevenue: { value: 0, formatted: '৳0' },
+      paidAmount: { value: 0, formatted: '৳0' },
+      pendingAmount: { value: 0, formatted: '৳0' },
+      overdueAmount: { value: 0, formatted: '৳0' },
+      paidSalesCount: { value: 0, formatted: '0' },
+      pendingSalesCount: { value: 0, formatted: '0' },
+      overdueSalesCount: { value: 0, formatted: '0' },
+      averageSaleValue: { value: 0, formatted: '৳0' },
+      paymentRate: { value: 0, formatted: '0%' }
+    };
   }
 }

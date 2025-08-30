@@ -42,6 +42,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
 import SupplierAddForm from '@/components/forms/SupplierAddForm';
+import { FormService } from '@/lib/services/formService';
 // Mock interfaces for UI demo
 interface SupplierType {
   id: string;
@@ -85,34 +86,59 @@ export default function SuppliersPage() {
 
   const loadSuppliers = async () => {
     try {
-      // Instant loading - no delays for better performance
-      setSuppliers([]);
-      setStats({
-        total: 0,
-        active: 0,
-        inactive: 0,
-        totalSpent: 0,
-      });
-      setLoading(false); // Always false for instant display
+      setLoading(true);
+
+      // Fetch suppliers from database
+      const suppliersData = await FormService.getSuppliers();
+
+      // Transform database suppliers to UI format
+      const transformedSuppliers: SupplierType[] = suppliersData.map((supplier: any) => ({
+        id: supplier.id.toString(),
+        name: supplier.name,
+        contact_person: supplier.contact_person,
+        phone: supplier.phone,
+        email: supplier.email,
+        address: supplier.address,
+        city: supplier.city,
+        state: supplier.state,
+        country: supplier.country,
+        postal_code: supplier.postal_code,
+        tax_number: supplier.tax_number,
+        payment_terms: supplier.payment_terms || 30,
+        credit_limit: supplier.credit_limit || 0,
+        current_balance: supplier.current_balance || 0,
+        total_orders: supplier.total_orders || 0,
+        total_spent: supplier.total_spent || 0,
+        last_order_date: supplier.last_order_date,
+        last_payment_date: supplier.last_payment_date,
+        is_active: supplier.is_active !== false,
+        rating: supplier.rating || 0,
+        notes: supplier.notes,
+        created_at: supplier.created_at,
+        updated_at: supplier.updated_at,
+      }));
+
+      setSuppliers(transformedSuppliers);
+
+      // Calculate stats
+      const stats = {
+        total: transformedSuppliers.length,
+        active: transformedSuppliers.filter(s => s.is_active).length,
+        inactive: transformedSuppliers.filter(s => !s.is_active).length,
+        totalSpent: transformedSuppliers.reduce((sum, s) => sum + (s.total_spent || 0), 0),
+      };
+      setStats(stats);
+
     } catch (error) {
       console.error('Failed to load suppliers:', error);
       Alert.alert('Error', 'Failed to load suppliers');
+    } finally {
       setLoading(false);
     }
   };
 
   const loadStats = async () => {
-    try {
-      // Mock stats for demo
-      setStats({
-        total: 0,
-        active: 0,
-        inactive: 0,
-        totalSpent: 0,
-      });
-    } catch (error) {
-      console.error('Failed to load supplier stats:', error);
-    }
+    // Stats are now loaded in loadSuppliers
   };
 
   const handleSupplierAdded = () => {

@@ -1,60 +1,72 @@
-// Sample status types
-export type SampleStatus = 
-  | 'Requested' 
-  | 'Prepared' 
-  | 'Delivered' 
-  | 'Returned' 
-  | 'Converted to Sale' 
-  | 'Lost/Damaged' 
-  | 'Expired';
+// Sample status types (matching database enum)
+export type SampleStatus =
+  | 'requested'
+  | 'prepared'
+  | 'delivered'
+  | 'returned'
+  | 'converted'
+  | 'lost'
+  | 'expired';
 
-export type SamplePurpose = 
-  | 'Customer Evaluation' 
-  | 'Quality Check' 
-  | 'Bulk Order Preview' 
-  | 'New Product Introduction' 
-  | 'Trade Show Display';
+export type SamplePurpose =
+  | 'Quality evaluation for bulk order'
+  | 'Color matching test'
+  | 'Premium fabric evaluation'
+  | 'Lining material test'
+  | 'Casual wear fabric sample'
+  | 'Dress material evaluation'
+  | 'Quality Check';
 
-export type DeliveryMethod = 
-  | 'Hand Delivery' 
-  | 'Courier Service' 
-  | 'Express Delivery' 
-  | 'Customer Pickup';
+export type DeliveryMethod =
+  | 'courier'
+  | 'pickup'
+  | 'express'
+  | 'hand_delivery';
 
-// Main Sample interface
+// Main Sample interface (matching database structure)
 export interface Sample {
   id: string;
   sampleNumber: string;
   sampleName: string;
   description: string;
-  // Product fields removed - will be implemented later
+
+  // Customer information
   customerId: string;
   customerName: string;
   customerPhone: string;
   customerEmail: string;
+
+  // Product information
+  productId: string;
+  productName: string;
+  productCode: string;
+
+  // Sample details
   quantity: number;
-  deliveryDate: Date;
-  expectedReturnDate: Date;
-  actualReturnDate?: Date;
-  status: SampleStatus;
+  cost: number;
   purpose: SamplePurpose;
-  deliveryMethod: DeliveryMethod;
+
+  // Status and dates
+  status: SampleStatus;
+  requestDate: Date;
+  expectedReturnDate?: Date;
+  actualReturnDate?: Date;
+
+  // Delivery information
   deliveryAddress: string;
-  deliveryCost: number;
-  packagingCost: number;
-  staffTimeHours: number;
-  transportationCost: number;
-  miscellaneousCost: number;
-  totalCost: number;
+  deliveryMethod: DeliveryMethod;
+  deliveryPerson: string;
+
+  // Conversion information
+  conversionSaleId?: string;
+  conversionAmount?: number;
+  conversionDate?: Date;
+
+  // Metadata
   notes: string;
   createdBy: string;
-  createdDate: Date;
-  lastUpdated: Date;
-  conversionToSale?: {
-    saleId: string;
-    saleAmount: number;
-    conversionDate: Date;
-  };
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // Filter interface

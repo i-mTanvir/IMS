@@ -42,22 +42,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
 import CustomerAddForm from '@/components/forms/CustomerAddForm';
-// Mock customer service for UI demo
+import { FormService } from '@/lib/services/formService';
+import type { Customer as DBCustomer } from '@/lib/supabase';
 
-// Mock interfaces for UI demo
-interface Customer {
-  id: string;
-  name: string;
-  customer_type: 'vip' | 'regular' | 'wholesale';
-  contact_person?: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  postal_code?: string;
-  tax_number?: string;
+// Customer interface for UI (extends database Customer)
+interface Customer extends DBCustomer {
   payment_status: 'good' | 'warning' | 'overdue' | 'red_listed';
   credit_limit: number;
   current_balance: number;
@@ -65,23 +54,15 @@ interface Customer {
   total_orders: number;
   last_order_date?: string;
   last_payment_date?: string;
-  is_red_listed: boolean;
-  red_list_reason?: string;
-  red_listed_date?: string;
-  red_listed_by?: string;
   is_active: boolean;
   notes?: string;
-  created_at: string;
-  updated_at: string;
   created_by?: string;
   updated_by?: string;
-  total_purchases: number;
   total_spent: number;
   average_order_value: number;
   purchase_frequency: number;
   outstanding_amount: number;
   days_past_due: number;
-  last_purchase_date?: string;
   payment_terms: number;
 }
 
@@ -120,147 +101,7 @@ interface CustomerFilters {
   is_active?: boolean;
 }
 
-// Mock data
-const mockCustomers: Customer[] = [
-  {
-    id: '1',
-    name: 'Rahman Furniture',
-    email: 'contact@rahmanfurniture.com',
-    phone: '+880-1234-567890',
-    address: 'Gulshan-2, Dhaka, Bangladesh',
-    customer_type: 'vip',
-    credit_limit: 500000,
-    current_balance: 0,
-    total_sales: 2500000,
-    total_orders: 45,
-    payment_terms: 30,
-    total_purchases: 45,
-    total_spent: 2500000,
-    average_order_value: 55555,
-    last_purchase_date: '2025-01-05',
-    purchase_frequency: 3.2,
-    is_active: true,
-    is_red_listed: false,
-    payment_status: 'good',
-    outstanding_amount: 0,
-    days_past_due: 0,
-    notes: 'Premium customer with excellent payment history',
-    created_by: 'Admin User',
-    created_at: '2024-01-15',
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    name: 'Elite Interiors',
-    email: 'info@eliteinteriors.bd',
-    phone: '+880-1234-567891',
-    address: 'Dhanmondi, Dhaka, Bangladesh',
-    customer_type: 'regular',
-    credit_limit: 200000,
-    current_balance: 26400,
-    total_sales: 850000,
-    total_orders: 28,
-    payment_terms: 15,
-    total_purchases: 28,
-    total_spent: 850000,
-    average_order_value: 30357,
-    last_purchase_date: '2025-01-08',
-    purchase_frequency: 2.1,
-    is_active: true,
-    is_red_listed: false,
-    payment_status: 'warning',
-    outstanding_amount: 26400,
-    days_past_due: 5,
-    notes: 'Regular customer, sometimes delays payments',
-    created_by: 'Sales User',
-    created_at: '2024-02-01',
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '3',
-    name: 'Modern Home Decor',
-    email: 'orders@modernhomedecor.com',
-    phone: '+880-1234-567892',
-    address: 'Uttara, Dhaka, Bangladesh',
-    customer_type: 'wholesale',
-    credit_limit: 1000000,
-    current_balance: 104000,
-    total_sales: 4200000,
-    total_orders: 67,
-    payment_terms: 45,
-    total_purchases: 67,
-    total_spent: 4200000,
-    average_order_value: 62686,
-    last_purchase_date: '2024-11-15',
-    purchase_frequency: 4.8,
-    is_active: true,
-    is_red_listed: true,
-    red_listed_date: '2024-12-30',
-    red_list_reason: 'Payment overdue for 65 days',
-    payment_status: 'red_listed',
-    outstanding_amount: 104000,
-    days_past_due: 65,
-    notes: 'High volume customer but payment issues',
-    created_by: 'Admin User',
-    created_at: '2024-01-10',
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '4',
-    name: 'Comfort Living Ltd',
-    email: 'sales@comfortliving.bd',
-    phone: '+880-1234-567893',
-    address: 'Banani, Dhaka, Bangladesh',
-    customer_type: 'vip',
-    credit_limit: 750000,
-    current_balance: 0,
-    total_sales: 3200000,
-    total_orders: 52,
-    payment_terms: 30,
-    total_purchases: 52,
-    total_spent: 3200000,
-    average_order_value: 61538,
-    last_purchase_date: '2025-01-03',
-    purchase_frequency: 3.8,
-    is_active: true,
-    is_red_listed: false,
-    payment_status: 'good',
-    outstanding_amount: 0,
-    days_past_due: 0,
-    notes: 'Excellent customer with consistent orders',
-    created_by: 'Admin User',
-    created_at: '2023-12-01',
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '5',
-    name: 'Budget Furniture House',
-    email: 'info@budgetfurniture.com',
-    phone: '+880-1234-567894',
-    address: 'Mirpur, Dhaka, Bangladesh',
-    customer_type: 'regular',
-    credit_limit: 150000,
-    current_balance: 45000,
-    total_sales: 420000,
-    total_orders: 18,
-    payment_terms: 15,
-    total_purchases: 18,
-    total_spent: 420000,
-    average_order_value: 23333,
-    last_purchase_date: '2024-12-20',
-    purchase_frequency: 1.8,
-    is_active: true,
-    is_red_listed: false,
-    payment_status: 'overdue',
-    outstanding_amount: 45000,
-    days_past_due: 25,
-    notes: 'Small orders, occasional payment delays',
-    created_by: 'Sales User',
-    created_at: '2024-03-15',
-    updated_at: new Date().toISOString(),
-  },
-];
-
+// Mock purchase history data for UI demo
 const mockPurchaseHistory: PurchaseHistory[] = [
   {
     id: '1',
@@ -317,6 +158,34 @@ const mockPurchaseHistory: PurchaseHistory[] = [
     remainingAmount: 26400,
     notes: 'Payment pending',
   },
+  {
+    id: '2',
+    customerId: '2',
+    saleId: 'SAL-2025-002',
+    saleNumber: 'SAL-2025-002',
+    purchaseDate: new Date('2025-01-08'),
+    products: [
+      {
+        productId: '2',
+        productName: 'Silk Curtain Material',
+        productCode: '#LWIL02013',
+        category: 'Curtains',
+        quantity: 30,
+        unitPrice: 800,
+        totalPrice: 24000,
+      }
+    ],
+    subtotal: 24000,
+    discountAmount: 0,
+    taxAmount: 2400,
+    totalAmount: 26400,
+    paymentMethod: 'Cash',
+    paymentStatus: 'warning',
+    dueDate: new Date('2025-01-23'),
+    paidAmount: 0,
+    remainingAmount: 26400,
+    notes: 'Payment pending',
+  },
 ];
 
 export default function CustomersPage() {
@@ -325,22 +194,75 @@ export default function CustomersPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'customers' | 'purchase-history' | 'red-list' | 'top-customers'>('customers');
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [purchaseHistory] = useState<PurchaseHistory[]>(mockPurchaseHistory);
+  const [purchaseHistory, setPurchaseHistory] = useState<PurchaseHistory[]>([]);
+  const [redListCustomers, setRedListCustomers] = useState<any[]>([]);
+  const [topCustomers, setTopCustomers] = useState<any[]>([]);
   const [filters, setFilters] = useState<CustomerFilters>({});
   const [refreshing, setRefreshing] = useState(false);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
-  const [loading, setLoading] = useState(false); // Instant loading - no delays
+  const [loading, setLoading] = useState(true);
 
-  // Load mock customers for UI demo - instant loading
+  // Load customers from database
   const loadCustomers = async () => {
     try {
-      // Instant loading - no delays for better performance
-      const data: Customer[] = mockCustomers;
-      setCustomers(data);
-      setLoading(false); // Always false for instant display
+      setLoading(true);
+
+      // Load all customers
+      const customersData = await FormService.getCustomers();
+
+      // Transform database customers to UI format
+      const transformedCustomers: Customer[] = customersData.map((customer: DBCustomer) => ({
+        ...customer,
+        id: customer.id.toString(),
+        payment_status: customer.red_list_status ? 'red_listed' :
+                       customer.total_due && customer.total_due > 0 ? 'warning' : 'good',
+        credit_limit: 50000, // Default credit limit
+        current_balance: customer.total_due || 0,
+        total_sales: customer.total_purchases || 0,
+        total_orders: 0, // Will be calculated from sales
+        is_active: true,
+        total_spent: customer.total_purchases || 0,
+        average_order_value: 0, // Will be calculated
+        purchase_frequency: 0, // Will be calculated
+        outstanding_amount: customer.total_due || 0,
+        days_past_due: 0, // Will be calculated
+        payment_terms: 30, // Default payment terms
+      }));
+
+      setCustomers(transformedCustomers);
+
+      // Load red list customers
+      const redListData = await FormService.getRedListCustomers();
+      setRedListCustomers(redListData);
+
+      // Load purchase history (sales summary)
+      const salesData = await FormService.getSalesSummary();
+      const transformedHistory: PurchaseHistory[] = salesData.map((sale: any) => ({
+        id: sale.id.toString(),
+        customerId: sale.customer_id?.toString() || '',
+        saleId: sale.id.toString(),
+        saleNumber: sale.sale_number,
+        purchaseDate: new Date(sale.created_at),
+        products: [], // Will be loaded separately if needed
+        subtotal: parseFloat(sale.total_amount || '0'),
+        discountAmount: parseFloat(sale.discount_amount || '0'),
+        taxAmount: 0,
+        totalAmount: parseFloat(sale.total_amount || '0'),
+        paymentMethod: sale.payment_method || 'cash',
+        paymentStatus: sale.payment_status === 'paid' ? 'good' :
+                      sale.payment_status === 'overdue' ? 'overdue' : 'warning',
+        dueDate: sale.due_date ? new Date(sale.due_date) : undefined,
+        paidAmount: parseFloat(sale.paid_amount || '0'),
+        remainingAmount: parseFloat(sale.due_amount || '0'),
+        notes: ''
+      }));
+
+      setPurchaseHistory(transformedHistory);
+
     } catch (error) {
       console.error('Failed to load customers:', error);
       Alert.alert('Error', 'Failed to load customers');
+    } finally {
       setLoading(false);
     }
   };
@@ -815,7 +737,15 @@ export default function CustomersPage() {
       case 'purchase-history':
         return purchaseHistory;
       case 'red-list':
-        return customers.filter(c => c.is_red_listed);
+        return redListCustomers.map((customer: any) => ({
+          ...customer,
+          id: customer.customer_id.toString(),
+          name: customer.customer_name,
+          payment_status: 'red_listed' as const,
+          is_red_listed: true,
+          outstanding_amount: customer.total_due || 0,
+          days_past_due: customer.overdue_count || 0,
+        }));
       case 'top-customers':
         return analytics.topCustomersByRevenue;
       default:
@@ -849,9 +779,16 @@ export default function CustomersPage() {
         )}
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* KPI Cards */}
-        {renderKPICards()}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.loadingText, { color: theme.colors.text.secondary }]}>
+            Loading customers...
+          </Text>
+        </View>
+      ) : (
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* KPI Cards */}
+          {renderKPICards()}
 
         {/* Tabs */}
         {renderTabs()}
@@ -921,6 +858,7 @@ export default function CustomersPage() {
           }
         />
       </ScrollView>
+      )}
 
       {/* Customer Add Form */}
       <CustomerAddForm
@@ -1230,5 +1168,15 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 14,
     marginTop: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 64,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

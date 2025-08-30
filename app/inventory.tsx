@@ -34,6 +34,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
+import { FormService } from '@/lib/services/formService';
 // Mock interfaces for UI demo
 interface StockItem {
   id: string;
@@ -119,19 +120,43 @@ export default function InventoryPage() {
 
   const loadData = async () => {
     try {
-      // Instant loading - no delays for better performance
-      const statsData = { totalStockItems: 0, lowStockItems: 0, pendingTransfers: 0, averageUtilization: 0 };
-      const locationsData: Location[] = [];
+      setLoading(true);
+
+      // Load inventory summary and statistics
+      const inventoryData = await FormService.getInventorySummary();
+      const lowStockData = await FormService.getLowStockProducts();
+
+      // Calculate stats
+      const statsData = {
+        totalStockItems: inventoryData.length,
+        lowStockItems: lowStockData.length,
+        pendingTransfers: 0, // Would need transfer table
+        averageUtilization: inventoryData.length > 0 ?
+          inventoryData.reduce((sum: number, item: any) => sum + (item.utilization || 0), 0) / inventoryData.length : 0
+      };
+
+      // Load locations
+      const locationsData = await FormService.getLocations();
+      const transformedLocations: Location[] = locationsData.map((location: any) => ({
+        id: location.id.toString(),
+        name: location.name,
+        address: location.address || '',
+        capacity: location.capacity || 0,
+        currentUtilization: location.current_utilization || 0,
+        manager: location.manager || 'N/A',
+        status: location.status || 'active',
+        type: location.type || 'warehouse',
+      }));
 
       setStats(statsData);
-      setLocations(locationsData);
-      setLoading(false); // Always false for instant display
+      setLocations(transformedLocations);
 
       // Load initial tab data
       await loadTabData();
     } catch (error) {
       console.error('Error loading inventory data:', error);
       Alert.alert('Error', 'Failed to load inventory data. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
@@ -140,12 +165,28 @@ export default function InventoryPage() {
     try {
       switch (activeTab) {
         case 'stock':
-          // Mock stock data for demo
-          const stockData: StockItem[] = [];
+          // Load stock items from inventory summary
+          const inventoryData = await FormService.getInventorySummary();
+          const stockData: StockItem[] = inventoryData.map((item: any) => ({
+            id: item.product_id?.toString() || '',
+            productName: item.product_name || '',
+            productCode: item.product_code || '',
+            category: item.category_name || 'Uncategorized',
+            currentStock: item.total_quantity || 0,
+            reservedStock: item.reserved_quantity || 0,
+            availableStock: (item.total_quantity || 0) - (item.reserved_quantity || 0),
+            minimumThreshold: item.minimum_threshold || 0,
+            location: item.location_name || 'Main Warehouse',
+            lastUpdated: new Date(item.last_updated || Date.now()),
+            status: item.total_quantity <= item.minimum_threshold ? 'Low Stock' :
+                   item.total_quantity === 0 ? 'Out of Stock' : 'In Stock',
+            unitPrice: item.average_price || 0,
+            totalValue: (item.total_quantity || 0) * (item.average_price || 0),
+          }));
           setStockItems(stockData);
           break;
         case 'transfers':
-          // Mock transfer data for demo
+          // Mock transfer data for demo (would need transfer table)
           const transferData: Transfer[] = [];
           setTransfers(transferData);
           break;

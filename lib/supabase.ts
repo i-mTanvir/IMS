@@ -106,19 +106,23 @@ export interface Product {
   product_code: string;
   category_id?: number;
   description?: string;
-  purchase_price: number;
-  selling_price: number;
-  per_meter_price?: number;
+  // Pricing fields - optional since pricing is primarily stored in lots
+  purchase_price?: number | null;
+  selling_price?: number | null;
+  per_meter_price?: number | null;
   supplier_id?: number;
   location_id?: number;
   minimum_threshold: number;
-  current_stock: number;
+  current_stock: number; // Keep for backward compatibility
+  total_stock: number; // New field - sum of all lot quantities
   quantity?: number;
   current_lot_number?: number;
+  last_lot_no?: number; // Tracks the actual lot number (not ID)
   total_purchased: number;
   total_sold: number;
   wastage_status: boolean;
   product_status: 'active' | 'slow' | 'inactive';
+  unit_of_measurement?: string;
   images?: any;
   created_by?: number;
   created_at: string;
@@ -131,8 +135,9 @@ export interface ProductLot {
   product_id: number;
   lot_number: number;
   quantity: number;
-  purchase_price: number;
-  selling_price: number;
+  purchase_price?: number | null;
+  selling_price?: number | null;
+  per_unit_price?: number | null; // Automatically calculated as selling_price / quantity
   supplier_id?: number;
   location_id?: number;
   received_date?: string;

@@ -332,7 +332,7 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
     setFormData(prev => ({
       ...prev,
       productId: product.id.toString(),
-      unitPrice: product.selling_price.toString(),
+      unitPrice: '', // Don't set unit price until lot is selected
     }));
     setSelectedLot(null);
     setFormData(prev => ({ ...prev, lotId: '' }));
@@ -364,7 +364,7 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
     setFormData(prev => ({
       ...prev,
       lotId: lot.id.toString(),
-      unitPrice: lot.selling_price.toString(),
+      unitPrice: lot.per_unit_price?.toString() || '0', // Use per_unit_price instead of selling_price
     }));
     setShowDropdowns(prev => ({ ...prev, lot: false }));
   }, []);
@@ -441,8 +441,21 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
         return;
       }
 
-      // Create sale using FormService
-      const result = await FormService.createSale(saleData, user.id);
+      // Create sale using FormService with lot-specific data
+      const lotSaleData = {
+        productId: selectedProduct!.id,
+        lotId: selectedLot!.id,
+        customerId: selectedCustomer!.id,
+        quantity: formData.quantity,
+        unitPrice: formData.unitPrice,
+        discountType: formData.discountType,
+        discountAmount: totals.discountAmount.toString(),
+        paymentMethod: formData.paymentMethod,
+        paymentStatus: formData.paymentType === 'full' ? 'paid' : (formData.paymentType === 'partial' ? 'partial' : 'pending'),
+        notes: formData.notes
+      };
+
+      const result = await FormService.createSale(lotSaleData, user.id);
 
       if (result.success && result.data) {
         // Call the original submission handler for UI updates
@@ -618,7 +631,9 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
                         )}
                       </View>
                     </View>
-                    <Text style={styles.productItemPrice}>৳{product.selling_price}</Text>
+                    <Text style={styles.productItemPrice}>
+                      {product.selling_price ? `৳${product.selling_price}` : 'Price varies by lot'}
+                    </Text>
                   </View>
                 </TouchableOpacity>
               )) : (
@@ -709,7 +724,7 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
                         Received: {lot.received_date ? new Date(lot.received_date).toLocaleDateString() : 'N/A'}
                       </Text>
                       <Text style={styles.lotItemPrice}>
-                        Price: ৳{lot.selling_price}
+                        Per Unit: ৳{lot.per_unit_price || 0}
                       </Text>
                     </View>
                   </View>
@@ -910,7 +925,9 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
             </View>
             <View style={styles.productInfoRow}>
               <Text style={styles.productInfoLabel}>Base Price:</Text>
-              <Text style={styles.productInfoValue}>৳{selectedProduct.selling_price}</Text>
+              <Text style={styles.productInfoValue}>
+                {selectedProduct.selling_price ? `৳${selectedProduct.selling_price}` : 'Varies by lot'}
+              </Text>
             </View>
           </View>
         )}
@@ -976,13 +993,13 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
               <Text style={styles.lotInfoValue}>{selectedLot.received_date ? new Date(selectedLot.received_date).toLocaleDateString() : 'N/A'}</Text>
             </View>
             <View style={styles.lotInfoRow}>
-              <Text style={styles.lotInfoLabel}>Purchase Price:</Text>
-              <Text style={styles.lotInfoValue}>৳{selectedLot.purchase_price}</Text>
+              <Text style={styles.lotInfoLabel}>Total Lot Value:</Text>
+              <Text style={styles.lotInfoValue}>৳{selectedLot.selling_price || 0}</Text>
             </View>
             <View style={styles.lotInfoRow}>
-              <Text style={styles.lotInfoLabel}>Selling Price:</Text>
+              <Text style={styles.lotInfoLabel}>Per Unit Price:</Text>
               <Text style={[styles.lotInfoValue, { color: theme.colors.primary, fontWeight: '700' }]}>
-                ৳{selectedLot.selling_price}
+                ৳{selectedLot.per_unit_price || 0}
               </Text>
             </View>
           </View>
@@ -1598,7 +1615,7 @@ export default function SalesForm({ visible, onClose, onSubmit, onSaveDraft }: S
                           return;
                         }
                         if (currentStep === 1 && parseFloat(formData.quantity) > selectedLot!.quantity) {
-                          Alert.alert('Invalid Quantity', 'Quantity cannot exceed available stock.');
+                          Alert.alert('Invalid Quantity', `Quantity cannot exceed available stock. Available: ${selectedLot!.quantity} units`);
                           return;
                         }
                         setCurrentStep(prev => prev + 1);

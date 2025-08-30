@@ -6,7 +6,6 @@ import {
   Modal,
   ScrollView,
   TouchableOpacity,
-  Alert,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
@@ -30,6 +29,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 import { FormService, type ProductFormData as FormServiceProductData } from '@/lib/services/formService';
 import type { Category, Supplier, Location, Product } from '@/lib/supabase';
 
@@ -103,9 +103,9 @@ const formSteps: FormStep[] = [
     fields: ['name', 'product_code', 'category_id', 'description']
   },
   {
-    title: 'Pricing',
+    title: 'Stock and Pricing',
     icon: DollarSign,
-    fields: ['purchase_price', 'selling_price', 'current_stock', 'unit_of_measurement', 'per_unit_price']
+    fields: ['current_stock', 'purchase_price', 'selling_price', 'unit_of_measurement', 'per_unit_price']
   },
   {
     title: 'Stock & Location',
@@ -264,7 +264,7 @@ const DropdownField: React.FC<DropdownFieldProps> = ({ value, onChange, options,
   const handleDropdownToggle = () => {
     if (!isOpen && dropdownRef.current) {
       // Measure the dropdown position to determine if it should open upward or downward
-      dropdownRef.current.measure((x, y, width, height, pageX, pageY) => {
+      dropdownRef.current.measure((_x, _y, _width, height, _pageX, pageY) => {
         const screenHeight = Dimensions.get('window').height;
         const dropdownHeight = Math.min(filteredOptions.length * 60, 200); // Estimate dropdown height
         const spaceBelow = screenHeight - pageY - height - 100; // 100px buffer for footer
@@ -492,6 +492,7 @@ const PriceCalculator: React.FC<PriceCalculatorProps> = ({ formData, theme }) =>
 export default function ProductAddForm({ visible, onClose, onSubmit, existingProduct }: ProductAddFormProps) {
   const { theme } = useTheme();
   const { hasPermission, user } = useAuth();
+  const { showToast } = useToast();
   const slideAnim = useRef(new Animated.Value(-screenHeight)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -656,7 +657,7 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
   // Handle existing product selection
   const handleExistingProductSelect = (product: Product) => {
     setSelectedExistingProduct(product);
-    const nextLotNumber = ((product.current_lot_number || 0) + 1).toString();
+    const nextLotNumber = ((product.last_lot_no || product.current_lot_number || 0) + 1).toString();
 
     setFormData(prev => ({
       ...prev,
@@ -671,10 +672,10 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
       purchase_price: '',
       selling_price: '',
       quantity: '0',
-      unit_of_measurement: 'meter',
+      unit_of_measurement: product.unit_of_measurement || 'meter',
       per_unit_price: '',
-      // Show current stock for reference
-      current_stock: product.current_stock?.toString() || '0',
+      // Reset stock to 0 for new lot entry
+      current_stock: '0',
     }));
   };
 
@@ -800,12 +801,12 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
 
   const onSubmitForm = async () => {
     if (!canAddProduct) {
-      Alert.alert('Permission Denied', 'You do not have permission to add products.');
+      showToast('You do not have permission to add products.', 'error');
       return;
     }
 
     if (!validateForm()) {
-      Alert.alert('Validation Error', 'Please fill in all required fields correctly.');
+      showToast('Please fill in all required fields correctly.', 'warning');
       return;
     }
 
@@ -824,12 +825,13 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
         location_id: formData.location_id ? parseInt(formData.location_id) : undefined,
         minimum_threshold: parseInt(formData.minimum_threshold) || 100,
         current_stock: parseFloat(formData.current_stock) || 0,
+        unit_of_measurement: formData.unit_of_measurement || 'meter',
         images: productImages || undefined,
       };
 
       // Get current user from auth context
       if (!user?.id) {
-        Alert.alert('Error', 'User not authenticated');
+        showToast('User not authenticated', 'error');
         return;
       }
 
@@ -846,18 +848,20 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
       if (result.success && result.data) {
         const actionText = productType === 'existing' ? 'restocked' : 'created';
         const productName = productType === 'existing' ? selectedExistingProduct?.name : result.data.name;
-        Alert.alert(
-          'Success',
-          `Product "${productName}" has been ${actionText} successfully!`,
-          [{ text: 'OK', onPress: () => { onSubmit(result.data); onClose(); } }]
-        );
+
+        // Show success toast
+        showToast(`Product "${productName}" has been ${actionText} successfully!`, 'success');
+
+        // Call the onSubmit callback and close the form
+        onSubmit(result.data);
+        onClose();
       } else {
-        Alert.alert('Error', result.error || 'Failed to save product');
+        showToast(result.error || 'Failed to save product', 'error');
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save product';
-      Alert.alert('Error', errorMessage);
-      console.error('Product creation error:', error);
+      showToast(errorMessage, 'error');
+      console.error('Product creation error:', errorMessage, error);
     } finally {
       setIsLoading(false);
     }
@@ -872,11 +876,8 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
   };
 
   const handleImagePicker = () => {
-    Alert.alert('Add Product Image', 'Choose an option', [
-      { text: 'Camera', onPress: () => console.log('Camera selected') },
-      { text: 'Gallery', onPress: () => console.log('Gallery selected') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    console.log('Image picker functionality not implemented yet');
+    // TODO: Implement image picker for web and mobile
   };
 
   const renderStepContent = () => {
@@ -1046,8 +1047,8 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
               const isRowField = (field === 'purchase_price' || field === 'lot_number' || field === 'unit_of_measurement');
 
               // For existing products, make certain fields read-only
-              const isReadOnlyForExisting = productType === 'existing' && 
-                ['name', 'product_code', 'category_id', 'description'].includes(field);
+              const isReadOnlyForExisting = productType === 'existing' &&
+                ['name', 'product_code', 'category_id', 'description', 'unit_of_measurement'].includes(field);
 
               if (isRowField && field === 'purchase_price') {
                 return (
@@ -1156,48 +1157,94 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
 
               if (isRowField && field === 'lot_number') {
                 return (
-                  <View key={field} style={styles.addressRow}>
-                    <View style={[styles.addressInput, { zIndex: 1001 }]}>
-                      <Text style={[styles.label, { color: theme.colors.text.primary }]}>
-                        {config?.label}
-                        {config?.info && (
-                          <Info size={12} color={theme.colors.text.muted} style={{ marginLeft: 4 }} />
-                        )}
-                      </Text>
-                      <FormInput
-                        field={field}
-                        fieldConfig={fieldConfig}
-                        value={formData[field as keyof ProductFormData]}
-                        onChangeText={(value) => updateFormData(field as keyof ProductFormData, value)}
-                        onBlur={() => { }}
-                        errors={errors}
-                        theme={theme}
-                      />
+                  <View key={field} style={styles.inputGroup}>
+                    <Text style={[
+                      styles.label,
+                      config?.required && styles.requiredLabel,
+                      { color: config?.required ? theme.colors.status.error : theme.colors.text.primary }
+                    ]}>
+                      {config?.label} {config?.required && '*'}
                       {config?.info && (
-                        <Text style={[styles.infoText, { color: theme.colors.text.muted }]}>
-                          {config.info}
-                        </Text>
+                        <Info size={12} color={theme.colors.text.muted} style={{ marginLeft: 4 }} />
                       )}
-                    </View>
-                    <View style={[styles.addressInput, { zIndex: 1000 }]}>
-                      <Text style={[styles.label, { color: theme.colors.text.primary }]}>
-                        {fieldConfig.current_stock?.label}
+                    </Text>
+                    <FormInput
+                      field={field}
+                      fieldConfig={fieldConfig}
+                      value={formData[field as keyof ProductFormData]}
+                      onChangeText={(value) => updateFormData(field as keyof ProductFormData, value)}
+                      onBlur={() => { }}
+                      errors={errors}
+                      theme={theme}
+                    />
+                    {config?.info && (
+                      <Text style={[styles.infoText, { color: theme.colors.text.muted }]}>
+                        {config.info}
                       </Text>
-                      <FormInput
-                        field="current_stock"
-                        fieldConfig={fieldConfig}
-                        value={formData.current_stock}
-                        onChangeText={(value) => updateFormData('current_stock', value)}
-                        onBlur={() => { }}
-                        errors={errors}
-                        theme={theme}
-                      />
-                    </View>
+                    )}
+                    {errors[field] && (
+                      <Text style={[styles.errorText, { color: theme.colors.status.error }]}>
+                        {errors[field]}
+                      </Text>
+                    )}
                   </View>
                 );
               }
 
-              if (field === 'selling_price' || field === 'current_stock' || field === 'per_unit_price') return null; // Already rendered in row
+              if (field === 'selling_price' || field === 'per_unit_price') return null; // Already rendered in row
+
+              // Special rendering for current_stock field
+              if (field === 'current_stock') {
+                return (
+                  <View key={field} style={styles.inputGroup}>
+                    <Text style={[
+                      styles.label,
+                      config?.required && styles.requiredLabel,
+                      { color: config?.required ? theme.colors.status.error : theme.colors.text.primary }
+                    ]}>
+                      {productType === 'existing' ? 'Add Stock Quantity' : config?.label} {config?.required && '*'}
+                      {config?.info && (
+                        <Info size={12} color={theme.colors.text.muted} style={{ marginLeft: 4 }} />
+                      )}
+                    </Text>
+                    <FormInput
+                      field="current_stock"
+                      fieldConfig={fieldConfig}
+                      value={formData.current_stock}
+                      onChangeText={(value) => updateFormData('current_stock', value)}
+                      onBlur={() => { }}
+                      errors={errors}
+                      theme={theme}
+                    />
+                    {productType === 'existing' && selectedExistingProduct && (
+                      <View style={[
+                        styles.stockSummary,
+                        {
+                          backgroundColor: theme.colors.backgroundSecondary,
+                          borderLeftColor: theme.colors.status.success
+                        }
+                      ]}>
+                        <Text style={[styles.stockSummaryText, { color: theme.colors.text.secondary }]}>
+                          Previous total stock: {selectedExistingProduct.total_stock || selectedExistingProduct.current_stock || 0}
+                        </Text>
+                        <Text style={[styles.stockSummaryText, { color: theme.colors.text.primary, fontWeight: '600' }]}>
+                          Total stock: {selectedExistingProduct.total_stock || selectedExistingProduct.current_stock || 0} + {formData.current_stock || '0'} = {(parseFloat((selectedExistingProduct.total_stock || selectedExistingProduct.current_stock)?.toString() || '0') + parseFloat(formData.current_stock || '0'))}
+                        </Text>
+                      </View>
+                    )}
+                    {config?.info && (
+                      <Text style={[styles.infoText, { color: theme.colors.text.muted }]}>
+                        {config.info}
+                      </Text>
+                    )}
+                    {errors.current_stock && (
+                      <Text style={[styles.errorText, { color: theme.colors.status.error }]}>
+                        {errors.current_stock}
+                      </Text>
+                    )}
+                  </View>
+                );
+              }
 
               // Assign higher z-index to fields that appear earlier in the form
               const fieldIndex = currentStepFields.indexOf(field);
@@ -1335,7 +1382,7 @@ export default function ProductAddForm({ visible, onClose, onSubmit, existingPro
                         // Validate step 0 (product type selection)
                         if (currentStep === 0) {
                           if (productType === 'existing' && !selectedExistingProduct) {
-                            Alert.alert('Selection Required', 'Please select an existing product to continue.');
+                            showToast('Please select an existing product to continue.', 'warning');
                             return;
                           }
                         }
@@ -1807,5 +1854,15 @@ const styles = StyleSheet.create({
   readOnlyIndicator: {
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  stockSummary: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+  },
+  stockSummaryText: {
+    fontSize: 14,
+    marginBottom: 2,
   },
 });

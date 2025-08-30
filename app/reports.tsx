@@ -52,6 +52,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
+import { FormService } from '@/lib/services/formService';
 import {
     ReportType,
     SalesReport,
@@ -294,12 +295,89 @@ export default function ReportsPage() {
     const generateReport = async (type: ReportType, format: ExportFormat) => {
         setIsGenerating(true);
 
-        // Simulate report generation
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        try {
+            let reportData: any = {};
 
-        Alert.alert('Report Generated', `${type} report generated in ${format} format`);
+            switch (type) {
+                case 'sales':
+                    // Generate sales report from real data
+                    const salesData = await FormService.getSalesSummary({
+                        startDate: dateRange.start.toISOString(),
+                        endDate: dateRange.end.toISOString()
+                    });
 
-        setIsGenerating(false);
+                    reportData = {
+                        type: 'Sales Report',
+                        dateRange: `${dateRange.start.toLocaleDateString()} - ${dateRange.end.toLocaleDateString()}`,
+                        totalSales: salesData.length,
+                        totalRevenue: salesData.reduce((sum: number, sale: any) => sum + parseFloat(sale.total_amount || '0'), 0),
+                        paidAmount: salesData.filter((sale: any) => sale.payment_status === 'paid')
+                            .reduce((sum: number, sale: any) => sum + parseFloat(sale.total_amount || '0'), 0),
+                        pendingAmount: salesData.filter((sale: any) => sale.payment_status === 'pending')
+                            .reduce((sum: number, sale: any) => sum + parseFloat(sale.due_amount || '0'), 0),
+                        data: salesData
+                    };
+                    break;
+
+                case 'customer':
+                    // Generate customer report from real data
+                    const customersData = await FormService.getCustomers();
+                    const redListData = await FormService.getRedListCustomers();
+
+                    reportData = {
+                        type: 'Customer Report',
+                        totalCustomers: customersData.length,
+                        activeCustomers: customersData.filter((c: any) => !c.red_list_status).length,
+                        redListCustomers: redListData.length,
+                        totalDue: customersData.reduce((sum: number, c: any) => sum + parseFloat(c.total_due || '0'), 0),
+                        data: customersData
+                    };
+                    break;
+
+                case 'inventory':
+                    // Generate inventory report from real data
+                    const inventoryData = await FormService.getInventorySummary();
+                    const lowStockData = await FormService.getLowStockProducts();
+
+                    reportData = {
+                        type: 'Inventory Report',
+                        totalProducts: inventoryData.length,
+                        lowStockProducts: lowStockData.length,
+                        totalValue: inventoryData.reduce((sum: number, item: any) =>
+                            sum + (item.total_quantity || 0) * (item.average_price || 0), 0),
+                        data: inventoryData
+                    };
+                    break;
+
+                case 'sample':
+                    // Generate sample report from real data
+                    const sampleData = await FormService.getSampleTracking();
+
+                    reportData = {
+                        type: 'Sample Report',
+                        totalSamples: sampleData.length,
+                        convertedSamples: sampleData.filter((s: any) => s.sample_status === 'converted').length,
+                        pendingSamples: sampleData.filter((s: any) => s.sample_status === 'delivered').length,
+                        totalCost: sampleData.reduce((sum: number, s: any) => sum + parseFloat(s.cost || '0'), 0),
+                        data: sampleData
+                    };
+                    break;
+            }
+
+            // Log the report data (in real app, this would export to file)
+            console.log(`Generated ${type} report:`, reportData);
+
+            Alert.alert(
+                'Report Generated',
+                `${reportData.type} generated successfully!\n\nFormat: ${format.toUpperCase()}\nData points: ${reportData.data?.length || 0}`
+            );
+
+        } catch (error) {
+            console.error('Error generating report:', error);
+            Alert.alert('Error', 'Failed to generate report. Please try again.');
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     const handleReportAction = (action: string, report: any) => {

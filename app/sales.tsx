@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   FlatList,
   Alert,
   RefreshControl,
@@ -18,24 +17,21 @@ import {
   Download,
   FileText,
   DollarSign,
-  Calendar,
   Users,
   AlertTriangle,
   Eye,
   Edit,
-  Trash2,
   CreditCard,
   Clock,
   CheckCircle,
   XCircle,
   Phone,
-  Mail,
 } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
 import SalesForm from '@/components/forms/SalesForm';
+import { FormService } from '@/lib/services/formService';
 
 // Interfaces
 interface Customer {
@@ -302,14 +298,103 @@ const mockDuePayments: DuePayment[] = [
 
 export default function SalesPage() {
   const { theme } = useTheme();
-  const { user, hasPermission } = useAuth();
-  const router = useRouter();
+  const { hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState<'sales' | 'due-payments' | 'invoices'>('sales');
-  const [sales] = useState<Sale[]>(mockSales);
-  const [duePayments] = useState<DuePayment[]>(mockDuePayments);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [duePayments, setDuePayments] = useState<DuePayment[]>([]);
+  const [redListCustomers, setRedListCustomers] = useState<any[]>([]);
+  const [salesStats, setSalesStats] = useState<any>(null);
   const [filters, setFilters] = useState<SalesFilters>({});
   const [refreshing, setRefreshing] = useState(false);
   const [showSalesForm, setShowSalesForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Data fetching functions
+  const loadSalesData = async () => {
+    try {
+      setLoading(true);
+
+      // Load sales summary
+      const salesData = await FormService.getSalesSummary(filters);
+      setSales(salesData.map((sale: any) => ({
+        id: sale.id.toString(),
+        saleNumber: sale.sale_number,
+        customerId: sale.customer_id?.toString() || '',
+        customerName: sale.customer_name || 'Unknown',
+        amount: parseFloat(sale.total_amount || '0'),
+        paidAmount: parseFloat(sale.paid_amount || '0'),
+        dueAmount: parseFloat(sale.due_amount || '0'),
+        paymentStatus: sale.payment_status === 'paid' ? 'Paid' :
+                     sale.payment_status === 'partial' ? 'Partial' :
+                     sale.payment_status === 'overdue' ? 'Overdue' : 'Due',
+        status: sale.sale_status === 'finalized' ? 'Delivered' :
+               sale.sale_status === 'draft' ? 'Draft' : 'Confirmed',
+        date: sale.created_at,
+        saleDate: new Date(sale.created_at || sale.sale_date || Date.now()),
+        location: sale.location_name || 'Unknown',
+        createdBy: sale.created_by_name || 'Unknown',
+        // Add missing required fields with defaults
+        items: [],
+        subtotal: parseFloat(sale.total_amount || '0'),
+        discountAmount: parseFloat(sale.discount_amount || '0'),
+        discountPercentage: 0,
+        taxAmount: 0,
+        taxPercentage: 0,
+        totalAmount: parseFloat(sale.total_amount || '0'),
+        paymentMethod: 'Cash',
+        dueDate: sale.due_date ? new Date(sale.due_date) : new Date(),
+        remainingAmount: parseFloat(sale.due_amount || '0'),
+        notes: '',
+        deliveryPerson: '',
+        deliveryPhoto: ''
+      })));
+
+      // Load due payments
+      const duePaymentsData = await FormService.getDuePaymentsSummary();
+      setDuePayments(duePaymentsData.map((payment: any) => ({
+        id: payment.sale_id.toString(),
+        saleId: payment.sale_id.toString(),
+        customerId: payment.customer_id?.toString() || '',
+        customerName: payment.customer_name || 'Unknown',
+        customerPhone: payment.customer_phone || '',
+        saleNumber: payment.sale_number,
+        invoiceNumber: payment.sale_number,
+        totalAmount: parseFloat(payment.total_amount || '0'),
+        originalAmount: parseFloat(payment.total_amount || '0'),
+        paidAmount: parseFloat(payment.paid_amount || '0'),
+        dueAmount: parseFloat(payment.due_amount || '0'),
+        remainingAmount: parseFloat(payment.due_amount || '0'),
+        dueDate: payment.due_date ? new Date(payment.due_date) : new Date(),
+        status: payment.payment_status === 'overdue' ? 'Overdue' : 'Due',
+        daysOverdue: payment.days_overdue || 0,
+        daysPastDue: payment.days_overdue || 0,
+        isRedListed: false,
+        reminderCount: 0,
+        createdAt: new Date(payment.created_at || Date.now()),
+        lastPaymentDate: new Date(payment.created_at || Date.now()),
+        paymentHistory: []
+      })));
+
+      // Load red list customers
+      const redListData = await FormService.getRedListCustomers();
+      setRedListCustomers(redListData);
+
+      // Load sales stats
+      const statsData = await FormService.getSalesStats();
+      setSalesStats(statsData);
+
+    } catch (error) {
+      console.error('Error loading sales data:', error);
+      Alert.alert('Error', 'Failed to load sales data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load data on component mount and when filters change
+  useEffect(() => {
+    loadSalesData();
+  }, [filters]);
 
   const filteredSales = useMemo(() => {
     return sales.filter(sale => {
@@ -331,9 +416,31 @@ export default function SalesPage() {
     });
   }, [sales, filters]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    await loadSalesData();
+    setRefreshing(false);
+  };
+
+  const handleSalesSubmit = async () => {
+    try {
+      // The sale is already created in the SalesForm, just refresh the data
+      await loadSalesData();
+      setShowSalesForm(false);
+    } catch (error) {
+      console.error('Error handling sales submission:', error);
+    }
+  };
+
+  const handleSaveDraft = async (draftData: any) => {
+    try {
+      // TODO: Implement draft saving functionality
+      console.log('Draft saved:', draftData);
+      Alert.alert('Success', 'Draft saved successfully');
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      Alert.alert('Error', 'Failed to save draft');
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -401,10 +508,10 @@ export default function SalesPage() {
   };
 
   const renderKPICards = () => {
-    const totalSalesAmount = sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
-    const totalDueAmount = duePayments.reduce((sum, payment) => sum + payment.remainingAmount, 0);
-    const overduePayments = duePayments.filter(p => p.status === 'Overdue').length;
-    const redListCustomers = duePayments.filter(p => p.isRedListed).length;
+    const totalSalesAmount = salesStats?.total_revenue || 0;
+    const totalDueAmount = salesStats?.pending_payments || 0;
+    const overduePayments = salesStats?.overdue_payments || 0;
+    const redListCustomersCount = redListCustomers.length;
 
     return (
       <View style={styles.kpiContainer}>
@@ -439,7 +546,7 @@ export default function SalesPage() {
             <View style={[styles.kpiIcon, { backgroundColor: theme.colors.status.error + '20' }]}>
               <Users size={24} color={theme.colors.status.error} />
             </View>
-            <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>{redListCustomers}</Text>
+            <Text style={[styles.kpiValue, { color: theme.colors.text.primary }]}>{redListCustomersCount}</Text>
             <Text style={[styles.kpiLabel, { color: theme.colors.text.secondary }]}>Red List Customers</Text>
           </View>
         </View>
@@ -762,32 +869,7 @@ export default function SalesPage() {
     }
   };
 
-  // Handle sales form submission
-  const handleSalesSubmit = async (salesData: any) => {
-    try {
-      console.log('Sales data submitted:', salesData);
-      // TODO: Implement actual sales submission logic
-      Alert.alert('Success', 'Sale completed successfully!');
-      setShowSalesForm(false);
-      // Refresh sales data here
-    } catch (error) {
-      console.error('Error submitting sale:', error);
-      Alert.alert('Error', 'Failed to complete sale. Please try again.');
-    }
-  };
 
-  // Handle save draft
-  const handleSaveDraft = async (draftData: any) => {
-    try {
-      console.log('Draft data saved:', draftData);
-      // TODO: Implement actual draft saving logic
-      Alert.alert('Draft Saved', 'Sale draft has been saved successfully!');
-      setShowSalesForm(false);
-    } catch (error) {
-      console.error('Error saving draft:', error);
-      Alert.alert('Error', 'Failed to save draft. Please try again.');
-    }
-  };
 
   return (
     <SharedLayout title="Sales & Invoicing">
@@ -808,8 +890,17 @@ export default function SalesPage() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* KPI Cards */}
-        {renderKPICards()}
+        {/* Loading State */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={[styles.loadingText, { color: theme.colors.text.secondary }]}>
+              Loading sales data...
+            </Text>
+          </View>
+        ) : (
+          <>
+            {/* KPI Cards */}
+            {renderKPICards()}
 
         {/* Tabs */}
         {renderTabs()}
@@ -871,6 +962,8 @@ export default function SalesPage() {
               </View>
             }
           />
+        )}
+          </>
         )}
       </ScrollView>
 
@@ -1130,5 +1223,15 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 14,
     marginTop: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 64,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

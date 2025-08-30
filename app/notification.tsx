@@ -41,6 +41,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
+import { FormService } from '@/lib/services/formService';
 
 // Types for mobile notifications
 interface MobileNotification {
@@ -185,12 +186,56 @@ export default function NotificationPage() {
     const router = useRouter();
 
     // State management
-    const [notifications, setNotifications] = useState<MobileNotification[]>(mockNotifications);
+    const [notifications, setNotifications] = useState<MobileNotification[]>([]);
     const [filters, setFilters] = useState<NotificationFilters>({});
     const [refreshing, setRefreshing] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [showFilters, setShowFilters] = useState(false);
     const [selectedNotification, setSelectedNotification] = useState<MobileNotification | null>(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
+
+    // Load notifications from database
+    const loadNotifications = async () => {
+        try {
+            setLoading(true);
+
+            // Fetch notifications from database
+            const notificationsData = await FormService.getNotifications();
+
+            // Transform database notifications to UI format
+            const transformedNotifications: MobileNotification[] = notificationsData.map((notification: any) => ({
+                id: notification.id.toString(),
+                type: notification.type || 'info',
+                title: notification.title,
+                message: notification.message,
+                priority: notification.priority || 'medium',
+                category: notification.category || 'system',
+                isRead: notification.is_read || false,
+                isActionable: !!notification.action_url,
+                actionUrl: notification.action_url,
+                timestamp: new Date(notification.created_at),
+                userId: notification.user_id?.toString(),
+            }));
+
+            setNotifications(transformedNotifications);
+        } catch (error) {
+            console.error('Failed to load notifications:', error);
+            Alert.alert('Error', 'Failed to load notifications');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Load data on component mount
+    React.useEffect(() => {
+        loadNotifications();
+    }, []);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await loadNotifications();
+        setRefreshing(false);
+    };
 
     // Filtered notifications
     const filteredNotifications = useMemo(() => {
@@ -251,14 +296,6 @@ export default function NotificationPage() {
     };
 
     // Event handlers
-    const onRefresh = () => {
-        setRefreshing(true);
-        // Simulate API call
-        setTimeout(() => {
-            setRefreshing(false);
-        }, 1000);
-    };
-
     const handleMarkAsRead = (notificationId: string) => {
         // Haptic feedback for successful action
         Vibration.vibrate(50);

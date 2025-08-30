@@ -13,18 +13,12 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import SharedLayout from '@/components/SharedLayout';
-import { supabase } from '@/lib/supabase';
+import { FormService } from '@/lib/services/formService';
 
 const { width } = Dimensions.get('window');
 const isMobile = width < 768;
 
-// Simplified KPI data
-const kpiData = {
-  totalSales: { value: 48988, change: 975 },
-  profitMargin: { value: 8988, change: 533 },
-  totalStock: { value: 4826, change: 153 },
-  lowStock: { value: 12, change: -2 },
-};
+// KPI data will be loaded from database
 
 const Dashboard = React.memo(function Dashboard() {
   const router = useRouter();
@@ -43,28 +37,28 @@ const Dashboard = React.memo(function Dashboard() {
     }
   }, [logout, router]);
 
-  // Check Supabase connection and fetch dashboard stats
+  // Load dashboard stats from database
   useEffect(() => {
-    const checkSupabaseConnection = async () => {
+    const loadDashboardStats = async () => {
       try {
-        // Test connection by fetching dashboard stats
-        const { data, error } = await supabase.rpc('get_dashboard_stats');
+        setIsLoading(true);
+        setSupabaseStatus('checking');
 
-        if (error) {
-          console.error('Supabase connection error:', error);
-          setSupabaseStatus('disconnected');
-        } else {
-          setSupabaseStatus('connected');
-          setDashboardStats(data);
-        }
+        // Fetch dashboard statistics
+        const stats = await FormService.getDashboardStats();
+
+        setSupabaseStatus('connected');
+        setDashboardStats(stats);
       } catch (error) {
-        console.error('Failed to connect to Supabase:', error);
+        console.error('Failed to load dashboard stats:', error);
         setSupabaseStatus('disconnected');
+      } finally {
+        setIsLoading(false);
       }
     };
 
     if (user) {
-      checkSupabaseConnection();
+      loadDashboardStats();
     }
   }, [user]);
 
@@ -189,32 +183,51 @@ const Dashboard = React.memo(function Dashboard() {
           </View>
         )}
 
+        {/* Alerts */}
+        {dashboardStats?.alerts?.map((alert: any, index: number) => (
+          <View key={index} style={[styles.kpiCard, {
+            backgroundColor: alert.type === 'error' ? theme.colors.status.error + '10' : theme.colors.status.warning + '10',
+            borderLeftColor: alert.type === 'error' ? theme.colors.status.error : theme.colors.status.warning,
+            borderLeftWidth: 3,
+            marginBottom: 16
+          }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.kpiTitle}>{alert.title}</Text>
+              <AlertTriangle size={16} color={alert.type === 'error' ? theme.colors.status.error : theme.colors.status.warning} />
+            </View>
+            <Text style={[styles.kpiValue, { fontSize: 14 }]}>{alert.message}</Text>
+            <Text style={[styles.kpiChange, { color: alert.type === 'error' ? theme.colors.status.error : theme.colors.status.warning }]}>
+              {alert.action}
+            </Text>
+          </View>
+        ))}
+
         <View style={styles.kpiGrid}>
           <KPICard
             title="TOTAL SALES"
-            value={dashboardStats?.total_sales_today || kpiData.totalSales.value}
-            change={kpiData.totalSales.change}
+            value={dashboardStats?.totalSales?.formatted || '৳0'}
+            change={dashboardStats?.totalSales?.change || 0}
             icon={DollarSign}
             color={theme.colors.primary}
           />
           <KPICard
-            title="PROFIT MARGIN"
-            value={kpiData.profitMargin.value}
-            change={kpiData.profitMargin.change}
-            icon={TrendingUp}
+            title="PAID SALES"
+            value={dashboardStats?.paidSales?.formatted || '৳0'}
+            change={dashboardStats?.paidSales?.change || 0}
+            icon={CheckCircle}
             color={theme.colors.status.success}
           />
           <KPICard
             title="TOTAL PRODUCTS"
-            value={dashboardStats?.total_products || kpiData.totalStock.value}
-            change={kpiData.totalStock.change}
+            value={dashboardStats?.totalProducts?.formatted || '0'}
+            change={dashboardStats?.totalProducts?.change || 0}
             icon={Package}
             color={theme.colors.status.info}
           />
           <KPICard
             title="LOW STOCK"
-            value={dashboardStats?.low_stock_products || kpiData.lowStock.value}
-            change={kpiData.lowStock.change}
+            value={dashboardStats?.lowStockCount?.formatted || '0'}
+            change={dashboardStats?.lowStockCount?.change || 0}
             icon={AlertTriangle}
             color={theme.colors.status.warning}
           />

@@ -1,13 +1,21 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar'
+import { LogBox } from 'react-native';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { PerformanceProvider } from '@/contexts/PerformanceContext';
+import { ToastProvider } from '@/contexts/ToastContext';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { shouldShowVisualMonitor } from '@/utils/performanceConfig';
 import '@/utils/performanceSummary'; // Initialize performance optimizations
+
+// Suppress React 19 compatibility warnings for React Native libraries
+LogBox.ignoreLogs([
+  'Warning: useInsertionEffect must not schedule updates',
+  'Warning: React.createElement: type is invalid',
+]);
 
 declare global {
   interface Window {
@@ -31,7 +39,8 @@ export default function RootLayout() {
       <ErrorBoundary>
         <PerformanceProvider>
           <ThemeProvider>
-            <AuthProvider>
+            <ToastProvider>
+              <AuthProvider>
               <Stack screenOptions={{
                 headerShown: false,
                 animation: 'none',
@@ -62,7 +71,8 @@ export default function RootLayout() {
 
               {/* Performance Monitor - Temporarily disabled to avoid theme errors */}
               {/* {shouldShowVisualMonitor() && <PerformanceMonitor />} */}
-            </AuthProvider>
+              </AuthProvider>
+            </ToastProvider>
           </ThemeProvider>
         </PerformanceProvider>
       </ErrorBoundary>

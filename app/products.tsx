@@ -31,6 +31,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
 import ProductAddForm from '@/components/forms/ProductAddForm';
+import { FormService } from '@/lib/services/formService';
 // Mock product interface for UI demo
 interface Product {
   id: string;
@@ -78,23 +79,46 @@ const ProductsPage = React.memo(function ProductsPage() {
 
 
   // Load mock products for UI demo
-  useEffect(() => {
-    // Mock products data for demo
-    setProducts([]);
-  }, []);
-
   const loadProducts = useCallback(async () => {
     try {
-      // Instant loading - no async delays for better performance
-      const data: Product[] = [];
-      setProducts(data);
-      setLoading(false); // Ensure loading is always false for instant display
+      setLoading(true);
+
+      // Fetch products from database
+      const productsData = await FormService.getProducts(filters);
+
+      // Transform database products to UI format
+      const transformedProducts: Product[] = productsData.map((product: any) => ({
+        id: product.id.toString(),
+        name: product.name,
+        productCode: product.product_code,
+        category: product.category_name || 'Uncategorized',
+        purchasePrice: 0, // Will be calculated from lots
+        sellingPrice: 0, // Will be calculated from lots
+        currentStock: product.current_stock || 0,
+        supplier: product.supplier_name || 'Unknown',
+        dateAdded: new Date(product.created_at),
+        status: product.current_stock <= product.minimum_threshold ? 'Low Stock' :
+                product.current_stock === 0 ? 'Out of Stock' : 'In Stock',
+        location: product.location_name || 'Main Warehouse',
+        available: product.current_stock || 0,
+        reserved: 0, // Would need to calculate from pending orders
+        onHand: product.current_stock || 0,
+        minimumThreshold: product.minimum_threshold || 0,
+        image: product.image_url || null,
+      }));
+
+      setProducts(transformedProducts);
     } catch (error) {
       console.error('Error loading products:', error);
       Alert.alert('Error', 'Failed to load products. Please try again.');
+    } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filters]);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
 
   // Reload products when filters change
   useEffect(() => {

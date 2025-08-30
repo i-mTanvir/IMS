@@ -42,163 +42,87 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import SharedLayout from '@/components/SharedLayout';
 import { Sample, SampleFilters, SampleStatus, SamplePurpose, DeliveryMethod, SampleAnalytics } from '@/types/sample';
+import { FormService } from '@/lib/services/formService';
 
-// Mock sample data
-const mockSamples: Sample[] = [
-  {
-    id: '1',
-    sampleNumber: 'SMP-2025-001',
-    sampleName: 'Premium Velvet Sample Set',
-    description: 'Velvet fabric samples in multiple colors for sofa evaluation',
-
-    customerId: '1',
-    customerName: 'Rahman Furniture',
-    customerPhone: '+880-1234-567890',
-    customerEmail: 'contact@rahmanfurniture.com',
-    quantity: 5,
-    deliveryDate: new Date('2025-01-05'),
-    expectedReturnDate: new Date('2025-01-15'),
-    actualReturnDate: new Date('2025-01-12'),
-    status: 'Converted to Sale',
-    purpose: 'Customer Evaluation',
-    deliveryMethod: 'Hand Delivery',
-    deliveryAddress: 'Gulshan-2, Dhaka, Bangladesh',
-    deliveryCost: 500,
-    packagingCost: 200,
-    staffTimeHours: 2,
-    transportationCost: 300,
-    miscellaneousCost: 100,
-    totalCost: 1100,
-    notes: 'Customer very satisfied with quality',
-    createdBy: 'Sales Manager',
-    createdDate: new Date('2025-01-03'),
-    lastUpdated: new Date('2025-01-12'),
-    conversionToSale: {
-      saleId: 'SAL-2025-001',
-      saleAmount: 62700,
-      conversionDate: new Date('2025-01-12'),
-    },
-  },
-  {
-    id: '2',
-    sampleNumber: 'SMP-2025-002',
-    sampleName: 'Silk Curtain Samples',
-    description: 'Various silk curtain materials for new showroom',
-
-    customerId: '2',
-    customerName: 'Elite Interiors',
-    customerPhone: '+880-1234-567891',
-    customerEmail: 'info@eliteinteriors.bd',
-    quantity: 8,
-    deliveryDate: new Date('2025-01-08'),
-    expectedReturnDate: new Date('2025-01-18'),
-    status: 'Delivered',
-    purpose: 'Quality Check',
-    deliveryMethod: 'Courier Service',
-    deliveryAddress: 'Dhanmondi, Dhaka, Bangladesh',
-    deliveryCost: 800,
-    packagingCost: 150,
-    staffTimeHours: 1.5,
-    transportationCost: 400,
-    miscellaneousCost: 50,
-    totalCost: 1400,
-    notes: 'Awaiting customer feedback',
-    createdBy: 'Admin User',
-    createdDate: new Date('2025-01-06'),
-    lastUpdated: new Date('2025-01-08'),
-  },
-  {
-    id: '3',
-    sampleNumber: 'SMP-2025-003',
-    sampleName: 'Leather Sample Collection',
-    description: 'Artificial leather samples for bulk order evaluation',
-
-    customerId: '3',
-    customerName: 'Modern Home Decor',
-    customerPhone: '+880-1234-567892',
-    customerEmail: 'orders@modernhomedecor.com',
-    quantity: 12,
-    deliveryDate: new Date('2024-12-20'),
-    expectedReturnDate: new Date('2024-12-30'),
-    status: 'Expired',
-    purpose: 'Bulk Order Preview',
-    deliveryMethod: 'Express Delivery',
-    deliveryAddress: 'Uttara, Dhaka, Bangladesh',
-    deliveryCost: 1200,
-    packagingCost: 300,
-    staffTimeHours: 3,
-    transportationCost: 600,
-    miscellaneousCost: 200,
-    totalCost: 2300,
-    notes: 'Customer did not return samples on time',
-    createdBy: 'Sales Manager',
-    createdDate: new Date('2024-12-18'),
-    lastUpdated: new Date('2025-01-10'),
-  },
-  {
-    id: '4',
-    sampleNumber: 'SMP-2025-004',
-    sampleName: 'Cotton Blend Test Samples',
-    description: 'New cotton blend fabric samples for quality assessment',
-    customerId: '4',
-    customerName: 'Comfort Living Ltd',
-    customerPhone: '+880-1234-567893',
-    customerEmail: 'sales@comfortliving.bd',
-    quantity: 6,
-    deliveryDate: new Date('2025-01-10'),
-    expectedReturnDate: new Date('2025-01-20'),
-    status: 'Delivered',
-    purpose: 'New Product Introduction',
-    deliveryMethod: 'Customer Pickup',
-    deliveryAddress: 'Banani, Dhaka, Bangladesh',
-    deliveryCost: 0,
-    packagingCost: 100,
-    staffTimeHours: 1,
-    transportationCost: 0,
-    miscellaneousCost: 50,
-    totalCost: 150,
-    notes: 'Customer picked up samples personally',
-    createdBy: 'Admin User',
-    createdDate: new Date('2025-01-08'),
-    lastUpdated: new Date('2025-01-10'),
-  },
-  {
-    id: '5',
-    sampleNumber: 'SMP-2025-005',
-    sampleName: 'Trade Show Display Set',
-    description: 'Sample collection for upcoming trade show display',
-    customerId: '5',
-    customerName: 'Budget Furniture House',
-    customerPhone: '+880-1234-567894',
-    customerEmail: 'info@budgetfurniture.com',
-    quantity: 15,
-    deliveryDate: new Date('2025-01-12'),
-    expectedReturnDate: new Date('2025-01-25'),
-    status: 'Prepared',
-    purpose: 'Trade Show Display',
-    deliveryMethod: 'Hand Delivery',
-    deliveryAddress: 'Mirpur, Dhaka, Bangladesh',
-    deliveryCost: 600,
-    packagingCost: 250,
-    staffTimeHours: 2.5,
-    transportationCost: 350,
-    miscellaneousCost: 100,
-    totalCost: 1300,
-    notes: 'Ready for delivery tomorrow',
-    createdBy: 'Sales Manager',
-    createdDate: new Date('2025-01-10'),
-    lastUpdated: new Date('2025-01-12'),
-  },
-];
+// Mock data removed - now using real database data
+const mockSamples: Sample[] = [];
 
 export default function SamplesPage() {
   const { theme } = useTheme();
   const { user, hasPermission } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'samples' | 'analytics' | 'conversions' | 'costs'>('samples');
-  const [samples] = useState<Sample[]>(mockSamples);
+  const [samples, setSamples] = useState<Sample[]>([]);
   const [filters, setFilters] = useState<SampleFilters>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load samples from database
+  const loadSamples = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch sample tracking data from database
+      const sampleData = await FormService.getSampleTracking();
+
+      // Transform database samples to UI format
+      const transformedSamples: Sample[] = sampleData.map((sample: any) => ({
+        id: sample.id.toString(),
+        sampleNumber: `SMP-${sample.id.toString().padStart(4, '0')}`,
+        sampleName: `${sample.products?.name || 'Unknown Product'} Sample`,
+        description: sample.notes || 'Product sample for evaluation',
+
+        customerId: sample.customer_id?.toString() || '',
+        customerName: sample.customers?.name || 'Unknown Customer',
+        customerPhone: sample.customers?.phone || '',
+        customerEmail: sample.customers?.email || '',
+
+        productId: sample.product_id?.toString() || '',
+        productName: sample.products?.name || 'Unknown Product',
+        productCode: sample.product_code || '',
+
+        quantity: sample.quantity || 0,
+        cost: sample.cost || 0,
+        purpose: sample.purpose as SamplePurpose || 'Quality Check',
+
+        status: sample.sample_status as SampleStatus || 'requested',
+        requestDate: new Date(sample.created_at),
+        expectedReturnDate: sample.expected_return_date ? new Date(sample.expected_return_date) : undefined,
+        actualReturnDate: sample.actual_return_date ? new Date(sample.actual_return_date) : undefined,
+
+        deliveryAddress: sample.delivery_address || '',
+        deliveryMethod: 'courier' as DeliveryMethod,
+        deliveryPerson: sample.delivery_person || '',
+
+        conversionSaleId: sample.conversion_sale_id?.toString(),
+        conversionAmount: sample.conversion_amount || 0,
+        conversionDate: sample.conversion_date ? new Date(sample.conversion_date) : undefined,
+
+        notes: sample.notes || '',
+        createdBy: sample.created_by?.toString() || '',
+        createdAt: new Date(sample.created_at),
+        updatedAt: new Date(sample.updated_at || sample.created_at),
+      }));
+
+      setSamples(transformedSamples);
+    } catch (error) {
+      console.error('Failed to load samples:', error);
+      Alert.alert('Error', 'Failed to load samples');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load data on component mount
+  React.useEffect(() => {
+    loadSamples();
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadSamples();
+    setRefreshing(false);
+  };
 
   // Filter samples based on current filters
   const filteredSamples = useMemo(() => {
@@ -267,12 +191,6 @@ export default function SamplesPage() {
       costPerConversion,
     };
   }, [samples]);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    // Simulate refresh
-    setTimeout(() => setRefreshing(false), 1000);
-  };
 
   const getStatusColor = (status: SampleStatus) => {
     switch (status) {
